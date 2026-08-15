@@ -1,0 +1,23 @@
+If:
+  PathMatch: [.*\.hpp, .*\.cpp]
+
+CompileFlags:
+  Add:
+    - -std=c++23
+    - -Wall -Wextra
+
+Diagnostics:
+  ClangTidy:
+    Add:
+      - "modernize*"
+      - "bugprone*"
+      - "cppcoreguidelines*"
+    Remove:
+      - "bugprone-easily-swappable-parameters"
+      - "cppcoreguidelines-avoid-magic-numbers"
+      - "cppcoreguidelines-avoid-non-const-global-variables"
+      - "cppcoreguidelines-macro-usage"
+      - "cppcoreguidelines-pro-bounds-pointer-arithmetic"
+      - "cppcoreguidelines-pro-type-vararg"
+      - "modernize-use-constraints"
+      - "modernize-use-std-print"

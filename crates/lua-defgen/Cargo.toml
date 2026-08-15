@@ -1,0 +1,8 @@
+[package]
+name = "lua-defgen"
+edition = "2024"
+version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+walkdir = { workspace = true }
