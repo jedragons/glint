@@ -9,7 +9,7 @@ namespace glint::core {
 
 static auto load_texture(const std::string& path, entt::registry& reg) -> raylib::Texture {
     auto fs_path = std::filesystem::path {path};
-    auto ext = fs_path.extension();
+    auto ext = fs_path.extension().string();
     auto& vfs = get_vfs(reg);
     auto data = vfs.read(path);
     auto image = raylib::Image(

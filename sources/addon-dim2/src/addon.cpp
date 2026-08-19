@@ -7,6 +7,8 @@
 #include <glint/dim2/bindings/atlas.hpp>
 #include <glint/dim2/bindings/sprite.hpp>
 #include <glint/dim2/bindings/transform.hpp>
+#include <glint/dim2/ecs/animated_sprite.hpp>
+#include <glint/dim2/ecs/sprite.hpp>
 
 namespace glint {
 
@@ -24,6 +26,11 @@ auto create_dim2_addon() -> NativeAddon {
             bind_sprite(reg);
             bind_transform(reg);
             bind_atlas(reg);
+        },
+        .update = [](entt::registry& reg) -> void { update_animated_sprites(reg); },
+        .render = [](entt::registry& reg) -> void {
+            draw_sprites(reg);
+            draw_animated_sprites(reg);
         },
     };
 }

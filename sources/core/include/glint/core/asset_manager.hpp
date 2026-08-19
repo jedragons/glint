@@ -49,11 +49,11 @@ class AssetManager {
 
     std::shared_ptr<EventQueue> m_event_queue = std::make_shared<EventQueue>();
     std::unordered_map<std::string, std::vector<EventHandler>> m_handlers {};
+    std::unordered_map<std::string, std::string> m_path_map {};
 
 #if GLINT_HOT_RELOAD_ASSETS
     using Watch = std::shared_ptr<wtr::watch>;
     std::vector<Watch> m_watchers {};
-    std::unordered_map<std::string, std::string> m_path_map {};
 #endif
 };
 

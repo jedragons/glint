@@ -12,7 +12,7 @@ auto NativeFileSystem::list(const std::string& path) -> std::vector<std::string>
     std::vector<std::string> paths;
     for (auto file : std::filesystem::directory_iterator {final_path(path)}) {
         auto path = (m_point / file.path().lexically_relative(m_root)).lexically_normal();
-        paths.emplace_back(std::move(path));
+        paths.emplace_back(path.string());
     }
 
     return paths;
@@ -33,7 +33,7 @@ auto NativeFileSystem::read_str(const std::string& path) -> std::string {
 }
 
 auto NativeFileSystem::real_path(const std::string& path) -> std::string {
-    return std::filesystem::canonical(final_path(path));
+    return std::filesystem::canonical(final_path(path)).string();
 }
 
 auto NativeFileSystem::final_path(const std::string& path) const -> std::filesystem::path {
