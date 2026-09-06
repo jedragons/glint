@@ -1,25 +1,27 @@
 #pragma once
 
-#include <entt/entt.hpp>
-#include <raylib-cpp/raylib-cpp.hpp>
-#include <sol/sol.hpp>
+#include <vector>
 
-#include <glint/config_builder.hpp>
-#include <glint/core.hpp>
+#include <entt/entity/registry.hpp>
+
+#include <glint/config.hpp>
+#include <glint/core/core.hpp>
+#include <glint/module.hpp>
 
 namespace glint {
 
-using Callback = std::function<void(entt::registry&)>;
-using CallbackList = std::vector<Callback>;
+struct GameHooks {
+    using HookList = std::vector<ModuleHook>;
+
+    HookList load;
+    HookList unload;
+    HookList update;
+    HookList render;
+};
 
 class Game final {
   public:
-    Game(const core::Config& config = default_config());
-    Game(const Game&) = delete;
-    Game(Game&&) = delete;
-    auto operator=(const Game&) -> Game& = delete;
-    auto operator=(Game&&) -> Game& = delete;
-    ~Game();
+    Game(const Config& config = default_config());
 
     [[nodiscard]]
     auto registry() -> entt::registry&;
@@ -35,21 +37,8 @@ class Game final {
 
   private:
     entt::registry m_reg {};
-
-    CallbackList m_pre_init {};
-    CallbackList m_init {};
-    CallbackList m_post_init {};
-    CallbackList m_pre_deinit {};
-    CallbackList m_deinit {};
-    CallbackList m_post_deinit {};
-    CallbackList m_pre_update {};
-    CallbackList m_update {};
-    CallbackList m_post_update {};
-    CallbackList m_pre_render {};
-    CallbackList m_render {};
-    CallbackList m_post_render {};
-
-    auto call(CallbackList& list) -> void;
+    GameHooks m_hooks {};
+    core::Window m_window {};
 };
 
 } // namespace glint

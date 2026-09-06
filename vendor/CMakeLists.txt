@@ -1,6 +1,16 @@
-add_subdirectory(./flecs/)
+add_subdirectory(./entt/)
+
+# EnTT's own ENTT_INSTALL path needs cmake/modules/JoinPaths.cmake and
+# cmake/in/*.in templates that aren't part of this vendored copy, so install
+# its (header-only) public headers ourselves instead of enabling that option.
+install(DIRECTORY entt/src/entt DESTINATION include)
+
+set(FMT_INSTALL ON)
 add_subdirectory(./fmt/)
+
+set(JSON_Install ON)
 add_subdirectory(./json/)
+
 add_subdirectory(./lua/)
 add_subdirectory(./raylib/)
 add_subdirectory(./raylib-nuklear/)

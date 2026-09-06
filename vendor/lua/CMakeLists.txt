@@ -53,3 +53,18 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 else()
     target_compile_definitions(lua PRIVATE LUA_USE_C89)
 endif()
+
+install(TARGETS lua
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
+)
+
+install(FILES
+    ./src/lua.h
+    ./src/luaconf.h
+    ./src/lualib.h
+    ./src/lauxlib.h
+    ./src/lua.hpp
+    DESTINATION include
+)

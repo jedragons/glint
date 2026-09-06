@@ -1,9 +1,0 @@
-#pragma once
-
-#include <entt/fwd.hpp>
-
-namespace glint::core {
-
-auto bind_entity(entt::registry& reg) -> void;
-
-}

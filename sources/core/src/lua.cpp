@@ -1,31 +1,60 @@
 #include <glint/core/lua.hpp>
 
-#include <glint/core/asset/lua_script.hpp>
-#include <glint/core/asset_manager.hpp>
-#include <glint/core/ecs/lua_module.hpp>
+#include <memory>
+
+#include <sol/sol.hpp>
+
+#include <entt/entity/handle.hpp>
+#include <entt/entity/registry.hpp>
+
+#include <glint/core/assets.hpp>
+#include <glint/core/hierarchy.hpp>
 
 namespace glint::core {
 
-auto init_lua(entt::registry& reg) -> void {
-    auto& lua = reg.ctx().emplace<std::shared_ptr<sol::state>>(std::make_shared<sol::state>());
+static inline auto setup_behavior(entt::registry& registry, entt::entity entity) -> void {
+    auto& behavior = registry.get<Behavior>(entity);
+    behavior.module->setup(entt::handle {registry, entity});
+}
+
+static inline auto teardown_behavior(entt::registry& registry, entt::entity entity) -> void {
+    auto& behavior = registry.get<Behavior>(entity);
+    behavior.module->destroy(entt::handle {registry, entity});
+}
+
+static inline auto import_lua(entt::registry& registry, const ModuleConfig& config) -> void {
+    (void)config;
+
+    assets_module().import(registry);
+    hierarchy_module().import(registry);
+    register_asset<LuaAsset>(registry);
+
+    auto lua = std::make_shared<sol::state>();
     lua->open_libraries(sol::lib::base, sol::lib::string, sol::lib::math, sol::lib::table, sol::lib::debug);
-    AssetManager::register_asset<LuaAsset>(reg);
+    registry.ctx().emplace<std::shared_ptr<sol::state>>(lua);
+
+    registry.on_construct<Behavior>().connect<&setup_behavior>();
+    registry.on_destroy<Behavior>().connect<&teardown_behavior>();
+
+    bind_entity(registry);
+    bind_registry(registry);
 }
 
-auto update_lua(entt::registry& reg) -> void {
-    for (auto [entity, comp] : reg.view<LuaPendingComp>().each()) {
-        auto module = comp.module;
-        reg.erase<LuaPendingComp>(entity);
-        reg.emplace<LuaComp>(entity, module);
-    }
-
-    for (auto [entity, comp] : reg.view<LuaComp>().each()) {
-        comp.module->update(entt::handle(reg, entity));
+static inline auto update_lua(entt::registry& registry) -> void {
+    for (auto [entity, behavior] : registry.view<Behavior>().each()) {
+        behavior.module->update(entt::handle {registry, entity});
     }
 }
 
-auto get_lua(entt::registry& reg) -> sol::state& {
-    return *reg.ctx().get<std::shared_ptr<sol::state>>();
+auto lua_module() -> Module {
+    return Module {
+        .name = "glint.core.lua",
+        .hooks = {.import = import_lua, .update = update_lua},
+    };
+}
+
+auto get_lua(entt::registry& registry) -> sol::state_view {
+    return {*registry.ctx().get<std::shared_ptr<sol::state>>()};
 }
 
 } // namespace glint::core

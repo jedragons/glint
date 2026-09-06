@@ -3,16 +3,14 @@
 Please keep categories (`##` level) listed alphabetically and matching their
 respective folder names.
 
-## Flecs
+## EnTT
 
-- Upstream: https://github.com/SanderMertens/flecs
-- Version: [v4.1.6](https://github.com/SanderMertens/flecs/releases/tag/v4.1.6)
+- Upstream: https://github.com/skypjack/entt
+- Version: [v4.0.0](https://github.com/skypjack/entt/releases/tag/v4.0.0)
 - License: MIT
 
 Files extracted:
 
-- cmake/
-- include/
 - src/
 - CMakeLists.txt
 

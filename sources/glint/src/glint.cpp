@@ -1,50 +1,63 @@
 #include <glint/glint.hpp>
 
-#include <glint/core.hpp>
+#include <exception>
+#include <ranges>
+
+#include <raylib.h>
+
+#include <glint/core/assets.hpp>
+#include <glint/core/lua.hpp>
+#include <glint/core/vfs.hpp>
 
 namespace glint {
 
-Game::Game(const core::Config& config) : m_reg {} {
-    init_core(m_reg, config);
-
-    for (const auto& module : config.native_addons) {
-        TraceLog(LOG_INFO, "GLINT: Registering addon '%s'", module.name.c_str());
-
-        if (module.pre_init) m_pre_init.emplace_back(module.pre_init);
-        if (module.init) m_init.emplace_back(module.init);
-        if (module.post_init) m_post_init.emplace_back(module.post_init);
-
-        if (module.pre_deinit) m_pre_deinit.emplace_back(module.pre_deinit);
-        if (module.deinit) m_deinit.emplace_back(module.deinit);
-        if (module.post_deinit) m_post_deinit.emplace_back(module.post_deinit);
-
-        if (module.pre_update) m_pre_update.emplace_back(module.pre_update);
-        if (module.update) m_update.emplace_back(module.update);
-        if (module.post_update) m_post_update.emplace_back(module.post_update);
-
-        if (module.pre_render) m_pre_render.emplace_back(module.pre_render);
-        if (module.render) m_render.emplace_back(module.render);
-        if (module.post_render) m_post_render.emplace_back(module.post_render);
-    }
-
-    call(m_pre_init);
-    call(m_init);
-    call(m_post_init);
-
-    if (!config.initial_module.empty()) {
-        auto initial = m_reg.create();
-        m_reg.emplace<core::LuaComp>(initial, core::load_module(m_reg, config.initial_module));
+static inline auto call_hooks(const GameHooks::HookList& hook_list, entt::registry& reg) -> void {
+    for (auto& f : hook_list) {
+        f(reg);
     }
 }
 
-Game::~Game() {
-    auto config = m_reg.ctx().get<core::Config>();
+static inline auto copy_hook(GameHooks::HookList& destination, const ModuleHook& hook) -> void {
+    if (hook) {
+        destination.emplace_back(hook);
+    }
+}
 
-    call(m_pre_deinit);
-    call(m_deinit);
-    call(m_post_deinit);
+static inline auto copy_module_hooks(GameHooks& hooks, const Module& mod) -> void {
+    copy_hook(hooks.load, mod.hooks.load);
+    copy_hook(hooks.unload, mod.hooks.unload);
+    copy_hook(hooks.update, mod.hooks.update);
+    copy_hook(hooks.render, mod.hooks.render);
+}
 
-    deinit_core(m_reg);
+Game::Game(const Config& config) : m_window(config.window) {
+    for (const auto& module : config.modules) {
+        module.import(m_reg);
+    }
+
+    for (const auto& module : m_reg.ctx().emplace<ModuleContext>().modules | std::views::values) {
+        copy_module_hooks(m_hooks, module);
+    }
+
+    call_hooks(m_hooks.load, m_reg);
+
+    auto& vfs = core::get_vfs(m_reg);
+
+    auto mount_points = config.mount_points;
+    if (mount_points.empty()) {
+        mount_points.emplace_back(MountConfig {.point = "/", .root = GetWorkingDirectory(), .kind = MountKind::Native});
+    }
+
+    for (const auto& mount : mount_points) {
+        TraceLog(LOG_INFO, "Mounting %s to %s", mount.point.c_str(), mount.root.c_str());
+        vfs.mount(mount.point, mount.root);
+    }
+
+    if (!config.initial_module.empty()) {
+        auto initial = m_reg.create();
+        auto module = core::load_asset<core::LuaAsset>(m_reg, config.initial_module);
+        m_reg.emplace<core::Behavior>(initial, module);
+    }
 }
 
 auto Game::registry() -> entt::registry& {
@@ -56,7 +69,7 @@ auto Game::registry() const -> const entt::registry& {
 }
 
 auto Game::run() -> int try {
-    while (is_running()) {
+    while (!WindowShouldClose()) {
         frame();
     }
     return 0;
@@ -70,103 +83,11 @@ auto Game::is_running() -> bool {
 }
 
 auto Game::frame() -> void {
-    update_core(m_reg);
-
-    call(m_pre_update);
-    call(m_update);
-    call(m_post_update);
-
+    call_hooks(m_hooks.update, m_reg);
     BeginDrawing();
     ClearBackground(BLACK);
-
-    call(m_pre_render);
-    call(m_render);
-    call(m_post_render);
-
+    call_hooks(m_hooks.render, m_reg);
     EndDrawing();
 }
 
-auto Game::call(CallbackList& list) -> void {
-    for (auto& c : list) {
-        c(m_reg);
-    }
-}
-
 } // namespace glint
-
-//
-// #include <cstddef>
-//
-// #include <dsp/filter.hpp>
-// #include <entt/entt.hpp>
-// #include <raylib-cpp/raylib-cpp.hpp>
-//
-// #include <glint/assets.hpp>
-// #include <glint/registry.hpp>
-// #include <glint/systems.hpp>
-//
-// namespace glint {
-//
-// struct AudioState {
-//     dsp::OnePoleFilter left_filter {};
-//     dsp::OnePoleFilter right_filter {};
-//
-//     AudioState() {
-//         left_filter.mode = dsp::FilterMode::LowPass;
-//         right_filter.mode = dsp::FilterMode::LowPass;
-//     }
-// };
-//
-// static AudioState *global_audio_state = nullptr;
-//
-// static auto audio_callback(void *buffer_data, unsigned int frames) -> void {
-//     if (global_audio_state == nullptr) {
-//         TraceLog(LOG_WARNING, "Could not process audio: global_audio_state is null");
-//         return;
-//     }
-//
-//     auto buf = std::span<float> {static_cast<float *>(buffer_data), size_t(frames * 2)};
-//     for (unsigned int i = 0; i < frames * 2; i += 2) {
-//         buf[i] = global_audio_state->left_filter.process_single(buf[i]);
-//         buf[i + 1] = global_audio_state->right_filter.process_single(buf[i + 1]);
-//     }
-// }
-//
-// auto init(entt::registry& reg, const Config& config) -> void {
-//     set_registry(reg);
-//
-//     init_core(reg, config);
-//     setup_assets(reg);
-//
-//     AttachAudioMixedProcessor(audio_callback);
-//     reg.ctx().insert_or_assign<AudioState>(AudioState {});
-//     global_audio_state = &reg.ctx().get<AudioState>();
-//
-//     auto game = reg.create();
-//     reg.emplace<LuaComp>(game, load_module(reg, "game.lua"));
-// }
-//
-// auto deinit(entt::registry& reg) -> void {
-//     deinit_core(reg);
-// }
-//
-// auto is_running(entt::registry& reg) -> bool {
-//     (void)reg;
-//     return !WindowShouldClose();
-// }
-//
-// auto frame(entt::registry& reg) -> void {
-//     update_assets(reg);
-//     update_nuklear(reg);
-//     update_sprites(reg);
-//     update_lua(reg);
-//
-//     (void)reg;
-//     BeginDrawing();
-//     ClearBackground(GetColor(0xbb18bbff));
-//     draw_sprites(reg);
-//     render_nuklear(reg);
-//     EndDrawing();
-// }
-//
-// } // namespace glint

@@ -1,51 +1,25 @@
-#include <glint/core.hpp>
-
-#include <glint/core/asset_manager.hpp>
-#include <glint/core/bindings/color.hpp>
-#include <glint/core/bindings/entity.hpp>
-#include <glint/core/bindings/rectangle.hpp>
-#include <glint/core/bindings/registry.hpp>
-#include <glint/core/bindings/stopwatch.hpp>
-#include <glint/core/bindings/timer.hpp>
-#include <glint/core/bindings/vector2.hpp>
-#include <glint/core/bindings/window.hpp>
-#include <glint/core/ecs/name_map.hpp>
-#include <glint/core/lua.hpp>
-#include <glint/core/vfs.hpp>
-#include <glint/core/window.hpp>
+#include <glint/core/core.hpp>
 
 namespace glint {
 
-using namespace core;
+static inline auto import_core(entt::registry& registry, const ModuleConfig& config) -> void {
+    (void)config;
 
-auto init_core(entt::registry& reg, const Config& config) -> void {
-    reg.ctx().emplace<Config>(config);
-
-    init_vfs(reg);
-    init_window(reg);
-    init_name_map(reg);
-    init_assets(reg);
-    init_lua(reg);
-    setup_textures(reg);
-
-    bind_window(reg);
-    bind_registry(reg);
-    bind_entity(reg);
-    bind_stopwatch(reg);
-    bind_timer(reg);
-    bind_color(reg);
-    bind_vector2(reg);
-    bind_rectangle(reg);
+    core::vfs_module().import(registry);
+    core::windowing_module().import(registry);
+    core::lua_module().import(registry);
+    core::assets_module().import(registry);
+    core::hierarchy_module().import(registry);
+    core::time_module().import(registry);
+    core::texture_module().import(registry);
+    core::types_module().import(registry);
 }
 
-auto deinit_core(entt::registry& reg) -> void {
-    reg.clear();
-    deinit_window(reg);
-}
-
-auto update_core(entt::registry& reg) -> void {
-    update_assets(reg);
-    update_lua(reg);
+auto core_module() -> Module {
+    return Module {
+        .name = "glint.core",
+        .hooks = {.import = import_core},
+    };
 }
 
 } // namespace glint

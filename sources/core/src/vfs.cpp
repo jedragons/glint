@@ -1,27 +1,25 @@
 #include <glint/core/vfs.hpp>
 
-#include <raylib-cpp/raylib.hpp>
+#include <memory>
 
-#include <glint/core/config.hpp>
+#include <entt/entity/registry.hpp>
 
 namespace glint::core {
 
-auto init_vfs(entt::registry& reg) -> void {
-    const auto& config = reg.ctx().get<Config>();
-
-    auto& vfs = reg.ctx().emplace<std::unique_ptr<vfs::Vfs>>(std::make_unique<vfs::Vfs>());
-    for (const auto& mount : config.mount_points) {
-        TraceLog(LOG_INFO, "Mounting %s to %s", mount.point.c_str(), mount.root.c_str());
-        vfs->mount(mount.point, mount.root);
-    }
+static inline auto import_vfs(entt::registry& registry, const ModuleConfig& config) -> void {
+    (void)config;
+    registry.ctx().emplace<std::unique_ptr<vfs::Vfs>>(std::make_unique<vfs::Vfs>());
 }
 
-auto deinit_vfs(entt::registry& reg) -> void {
-    reg.ctx().erase<std::unique_ptr<vfs::Vfs>>();
+auto vfs_module() -> Module {
+    return Module {
+        .name = "glint.core.vfs",
+        .hooks = {.import = import_vfs},
+    };
 }
 
-auto get_vfs(entt::registry& reg) -> vfs::Vfs& {
-    return *reg.ctx().get<std::unique_ptr<vfs::Vfs>>();
+auto get_vfs(entt::registry& registry) -> vfs::Vfs& {
+    return *registry.ctx().get<std::unique_ptr<vfs::Vfs>>();
 }
 
 } // namespace glint::core

@@ -1,9 +1,16 @@
 //! lua_typegen
 //!
-//! Scans `<sources>/<lib>/src/bindings` directories for C++ source files,
-//! extracts `/*@ ... */` comment blocks, dedents them, and writes one
-//! `<definitions>/<lib>/<relative-path>.lua` file per source file containing
-//! all of its extracted blocks (prefixed with `---@meta`).
+//! Scans each `<sources>/<lib>/src` directory (recursively -- bindings are
+//! not confined to a single `bindings/` subdirectory, and live at different
+//! depths in different libraries) for C++ source files, extracts `/*@ ... */`
+//! comment blocks, dedents them, and writes one `<definitions>/<lib>/<relative-path>.lua`
+//! file per source file containing all of its extracted blocks (prefixed with
+//! `---@meta`). Source files with no such blocks are simply skipped, so it is
+//! safe to point this at a whole library's `src/` tree.
+//!
+//! `<definitions>` is fully regenerated on each run (wiped up front) so
+//! definitions left behind by since-renamed or since-removed sources don't
+//! linger.
 //!
 //! This tool does no validation or sync-checking -- it only extracts text.
 //!
@@ -42,6 +49,15 @@ fn main() -> Result<()> {
         );
     }
 
+    if definitions_dir.is_dir() {
+        fs::remove_dir_all(&definitions_dir).with_context(|| {
+            format!(
+                "clearing stale definitions dir `{}`",
+                definitions_dir.display()
+            )
+        })?;
+    }
+
     for lib_entry in fs::read_dir(&sources_dir)
         .with_context(|| format!("reading sources dir `{}`", sources_dir.display()))?
     {
@@ -51,25 +67,22 @@ fn main() -> Result<()> {
         }
 
         let lib_name = lib_entry.file_name().to_string_lossy().into_owned();
-        let bindings_dir = lib_entry.path().join("src").join("bindings");
+        let src_dir = lib_entry.path().join("src");
 
-        if !bindings_dir.is_dir() {
+        if !src_dir.is_dir() {
             continue;
         }
 
-        process_bindings_dir(&bindings_dir, &lib_name, &definitions_dir)?;
+        process_src_dir(&src_dir, &lib_name, &definitions_dir)?;
     }
 
     Ok(())
 }
 
-/// Walks `bindings_dir` recursively, extracting blocks from every C++ source
+/// Walks `src_dir` recursively, extracting blocks from every C++ source
 /// file found and writing the corresponding `.lua` definition file.
-fn process_bindings_dir(bindings_dir: &Path, lib_name: &str, definitions_dir: &Path) -> Result<()> {
-    for entry in WalkDir::new(bindings_dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
+fn process_src_dir(src_dir: &Path, lib_name: &str, definitions_dir: &Path) -> Result<()> {
+    for entry in WalkDir::new(src_dir).into_iter().filter_map(|e| e.ok()) {
         if !entry.file_type().is_file() {
             continue;
         }
@@ -88,7 +101,7 @@ fn process_bindings_dir(bindings_dir: &Path, lib_name: &str, definitions_dir: &P
             continue;
         }
 
-        let relative = path.strip_prefix(bindings_dir).unwrap_or(path);
+        let relative = path.strip_prefix(src_dir).unwrap_or(path);
         let mut out_path = definitions_dir.join(lib_name).join(relative);
         out_path.set_extension("lua");
 

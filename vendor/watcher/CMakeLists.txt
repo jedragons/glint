@@ -12,3 +12,5 @@ add_library(wtr INTERFACE)
 target_include_directories(wtr INTERFACE
     ./include/
 )
+
+install(DIRECTORY include/ DESTINATION include)

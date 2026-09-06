@@ -3,7 +3,11 @@
 #include <entt/fwd.hpp>
 #include <sol/forward.hpp>
 
-#include <glint/core/asset.hpp>
+#include <glint/core/lua/asset.hpp>
+#include <glint/core/lua/behavior.hpp>
+#include <glint/core/lua/entity.hpp>
+#include <glint/core/lua/registry.hpp>
+#include <glint/module.hpp>
 
 #define GLINT_COMPONENT_FUNC_GET(type) \
     ("get"), ([](entt::handle& h) -> type& { \
@@ -22,8 +26,8 @@
 
 namespace glint::core {
 
-auto init_lua(entt::registry& reg) -> void;
-auto update_lua(entt::registry& reg) -> void;
-auto get_lua(entt::registry& reg) -> sol::state&;
+auto lua_module() -> Module;
+
+auto get_lua(entt::registry& registry) -> sol::state_view;
 
 } // namespace glint::core
