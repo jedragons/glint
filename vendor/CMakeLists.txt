@@ -1,0 +1,12 @@
+add_subdirectory(./flecs/)
+add_subdirectory(./fmt/)
+add_subdirectory(./json/)
+add_subdirectory(./lua/)
+add_subdirectory(./raylib/)
+add_subdirectory(./raylib-nuklear/)
+add_subdirectory(./sol2/)
+
+option(BUILD_LIB        "Create targets for the watcher-c libraries" ON)
+option(BUILD_BIN        "Create targets for the CLI binaries" ON)
+option(BUILD_PKG_CONFIG "Create targets for the pkg-config files" ON)
+add_subdirectory(./watcher/)
