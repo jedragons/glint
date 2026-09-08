@@ -40,6 +40,7 @@ Files extracted:
 - cmake/
 - include/
 - CMakeLists.txt
+- nlohmann_json.natvis
 
 ## Lua
 
