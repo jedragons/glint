@@ -17,9 +17,15 @@
         return h.get<type>(); \
     })
 
-#define GLINT_COMPONENT_FUNC_HAS(type) "has", ([](entt::handle& h) -> bool { return h.all_of<type>(); })
+#define GLINT_COMPONENT_FUNC_HAS(type) \
+    "has", ([](entt::handle& h) -> bool { \
+        return h.all_of<type>(); \
+    })
 
-#define GLINT_COMPONENT_FUNC_REMOVE(type) "remove", [](entt::handle& h) -> void { h.remove<type>(); }
+#define GLINT_COMPONENT_FUNC_REMOVE(type) \
+    "remove", [](entt::handle& h) -> void { \
+        h.remove<type>(); \
+    }
 
 #define GLINT_COMPONENT_FUNCS(type) \
     GLINT_COMPONENT_FUNC_GET(type), GLINT_COMPONENT_FUNC_HAS(type), GLINT_COMPONENT_FUNC_REMOVE(type)

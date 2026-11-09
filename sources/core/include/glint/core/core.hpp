@@ -3,6 +3,7 @@
 #include <glint/core/assets.hpp>
 #include <glint/core/hierarchy.hpp>
 #include <glint/core/lua.hpp>
+#include <glint/core/rendering.hpp>
 #include <glint/core/texture.hpp>
 #include <glint/core/time.hpp>
 #include <glint/core/types.hpp>

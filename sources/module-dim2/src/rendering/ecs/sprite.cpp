@@ -2,20 +2,23 @@
 
 #include <entt/entity/registry.hpp>
 
+#include <glint/core/rendering.hpp>
 #include <glint/dim2/physics/transform.hpp>
 
 namespace glint::dim2 {
 
 auto draw_sprites(entt::registry& registry) -> void {
     auto view = registry.view<SpriteComp, Transform2D>();
+    auto& renderer = core::get_renderer(registry);
+
     for (auto [entity, sprite, transform] : view.each()) {
         auto dest = sprite.sprite->frame.rect;
         dest.x = transform.position.x;
         dest.y = transform.position.y;
-        dest.width *= transform.scale.x;
-        dest.height *= transform.scale.y;
+        dest.w *= transform.scale.x;
+        dest.h *= transform.scale.y;
 
-        sprite.sprite->draw(dest, transform.origin, transform.rotation, WHITE);
+        sprite.sprite->draw(renderer, dest, transform.origin, transform.rotation, White);
     }
 }
 

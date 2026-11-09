@@ -9,7 +9,7 @@
 
 namespace glint {
 
-using ModuleValue = std::variant<std::monostate, std::string, int64_t, double>;
+using ModuleValue = std::variant<std::monostate, bool, std::string, int64_t, double>;
 
 using ModuleConfig = std::unordered_map<std::string, ModuleValue>;
 

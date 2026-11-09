@@ -19,7 +19,7 @@ configures, builds everything and runs `cargo check` on the workspace crates.
 
 ## Examples
 
-Building the project also builds the examples under `examples/` (`basic`, `2d/atlas`, `ui/basic`).
+Building the project also builds the examples under `examples/` (`basic`, `2d/atlas`).
 Run one directly from the build output:
 
 ```bash

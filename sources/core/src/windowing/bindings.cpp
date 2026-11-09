@@ -2,14 +2,14 @@
 
 #include <sstream>
 
-#include <raylib.h>
 #include <sol/sol.hpp>
 
 #include <glint/core/lua.hpp>
+#include <glint/core/windowing.hpp>
 
 namespace glint::core {
 
-auto lua_log(TraceLogLevel level, sol::variadic_args va) -> void {
+auto lua_log(LogLevel level, sol::variadic_args va) -> void {
     auto buf = std::stringstream {};
     for (const auto arg : va) {
         auto str = lua_tostring(va.lua_state(), arg.stack_index());
@@ -22,68 +22,95 @@ auto lua_log(TraceLogLevel level, sol::variadic_args va) -> void {
         message.pop_back();
     }
 
-    TraceLog(level, "%s", message.c_str());
+    log(level, "{}", message);
 }
 
 auto bind_window(entt::registry& registry) -> void {
     auto lua = core::get_lua(registry);
+    auto& window = get_window(registry);
 
-    /*@
-      ---@return number
-      function get_dt() end
-     */
-    lua.globals()["get_dt"] = []() -> float { return GetFrameTime(); };
+    lua.globals().set("window", window);
 
-    /*@
-      ---@return integer
-      function get_screen_width() end
-     */
-    lua.globals()["get_screen_width"] = []() -> int { return GetScreenWidth(); };
+    lua.new_usertype<Window>(
+        /*@
+          ---@class Window
+          ---@field dt number
+          ---@field time number
+          ---@field width integer
+          ---@field height integer
+          Window = {}
+        */
+        "Window",
 
-    /*@
-      ---@return integer
-      function get_screen_height() end
-     */
-    lua.globals()["get_screen_height"] = []() -> int { return GetScreenHeight(); };
+        "dt",
+        sol::property([window]() -> double {
+            return window.frame_time();
+        }),
+
+        "time",
+        sol::property([window]() -> double {
+            return window.time();
+        }),
+
+        "width",
+        sol::property([window]() -> uint32_t {
+            return window.screen_width();
+        }),
+
+        "height",
+        sol::property([window]() -> uint32_t {
+            return window.screen_height();
+        })
+    );
 
     /*@
       ---@param ... any
       function log_trace(...) end
      */
-    lua.globals()["log_trace"] = [](sol::variadic_args va) -> void { lua_log(LOG_TRACE, va); };
+    lua.globals().set("log_trace", [](sol::variadic_args va) {
+        lua_log(LogLevel::Trace, va);
+    });
 
     /*@
       ---@param ... any
       function log_debug(...) end
      */
-    lua.globals()["log_debug"] = [](sol::variadic_args va) -> void { lua_log(LOG_DEBUG, va); };
+    lua.globals().set("log_debug", [](sol::variadic_args va) {
+        lua_log(LogLevel::Debug, va);
+    });
 
     /*@
       ---@param ... any
       function log_info(...) end
      */
-    lua.globals()["log_info"] = [](sol::variadic_args va) -> void { lua_log(LOG_INFO, va); };
+    lua.globals().set("log_info", [](sol::variadic_args va) {
+        lua_log(LogLevel::Info, va);
+    });
 
     /*@
       ---@param ... any
       function log_warn(...) end
      */
-    lua.globals()["log_warn"] = [](sol::variadic_args va) -> void { lua_log(LOG_WARNING, va); };
+    lua.globals().set("log_warn", [](sol::variadic_args va) {
+        lua_log(LogLevel::Warn, va);
+    });
 
     /*@
       ---@param ... any
       function log_error(...) end
      */
-    lua.globals()["log_error"] = [](sol::variadic_args va) -> void { lua_log(LOG_ERROR, va); };
+    lua.globals().set("log_error", [](sol::variadic_args va) {
+        lua_log(LogLevel::Error, va);
+    });
 
     /*@
       ---@param ... any
       function log_fatal(...) end
      */
-    lua.globals()["log_fatal"] = [](sol::variadic_args va) -> void {
-        lua_log(LOG_ERROR, va);
+    lua.globals().set("log_fatal", [](sol::variadic_args va) {
+        lua_log(LogLevel::Error, va);
         throw sol::error("log_fatal called");
-    };
+    });
 }
 
 } // namespace glint::core

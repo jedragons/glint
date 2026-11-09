@@ -17,17 +17,17 @@ auto AssetWatcher::register_path(entt::registry& registry, const std::string& pa
             auto path_name = wtr::to<std::string>(event.path_name);
             auto associated = (event.associated ? " -> " + wtr::to<std::string>(event.associated->path_name) : "");
             auto msg = fmt::format("[WATCH] EVENT: {} {} `{}`{}", effect, path_type, path_name, associated);
-            TraceLog(LOG_DEBUG, "%s", msg.c_str());
+            log_debug("{}", msg);
 
             if (event.effect_type != wtr::event::effect_type::modify) return;
 
             msg = fmt::format("[WATCH] Reloading `{}`", path_name);
-            TraceLog(LOG_INFO, "%s", msg.c_str());
+            log_info("{}", msg);
             queue->push(std::move(event.path_name));
         })
     );
 
-    TraceLog(LOG_INFO, "[WATCH] Registered watcher at `%s`", pstr.c_str());
+    log_info("[WATCH] Registered watcher at `{}`", pstr);
 }
 
 auto AssetWatcher::reload_pending_assets(entt::registry& registry) -> void {

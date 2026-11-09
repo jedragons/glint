@@ -1,28 +1,6 @@
 add_library(glint-core STATIC)
 
-target_sources(glint-core PRIVATE
-    ./src/assets.cpp
-    ./src/assets/watcher.cpp
-    ./src/core.cpp
-    ./src/hierarchy.cpp
-    ./src/hierarchy/name_map.cpp
-    ./src/lua.cpp
-    ./src/lua/asset.cpp
-    ./src/lua/entity.cpp
-    ./src/lua/registry.cpp
-    ./src/texture.cpp
-    ./src/texture/asset.cpp
-    ./src/time.cpp
-    ./src/time/bindings.cpp
-    ./src/time/stopwatch.cpp
-    ./src/time/timer.cpp
-    ./src/types.cpp
-    ./src/types/bindings.cpp
-    ./src/vfs.cpp
-    ./src/windowing.cpp
-    ./src/windowing/bindings.cpp
-    ./src/windowing/window.cpp
-)
+target_sources(glint-core PRIVATE ./src/lib.cpp)
 
 set_target_properties(glint-core PROPERTIES
     CXX_STANDARD 23
@@ -35,12 +13,14 @@ target_include_directories(glint-core PUBLIC
 target_link_libraries(glint-core PUBLIC
     glint-vfs
     glint-module
+    glint-platform
+    glint-math
 
     fmt
     lua
-    raylib
     sol2
     wtr
+    EnTT::EnTT
 )
 
 target_compile_definitions(glint-core PUBLIC

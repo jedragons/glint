@@ -3,27 +3,38 @@
 #include <filesystem>
 
 #include <glint/core/vfs.hpp>
+#include <glint/platform/renderer.hpp>
 
 namespace glint::dim2 {
 
-auto Sprite::draw(this const Sprite& self, Rectangle dest, Vector2 origin, float rotation, Color tint) -> void {
-    DrawTexturePro(self.texture->texture(), self.frame.rect, dest, origin, rotation, tint);
+auto Sprite::draw(
+    this const Sprite& self,
+    platform::Renderer& renderer,
+    Rect dest,
+    Vec2 origin,
+    float rotation,
+    Color tint
+) -> void {
+    const auto src = self.frame.rect;
+    renderer.draw_texture(
+        self.texture->texture(),
+        {.source = src, .dest = dest, .origin = origin, .rotation = rotation, .tint = tint}
+    );
 }
 
 auto AnimatedSprite::frame(this const AnimatedSprite& self) -> std::optional<SpriteFrame> {
     if (self.frames.empty())
         return std::nullopt;
     else
-        return self.frames[self.current_frame];
+        return self.frames.at(self.current_frame);
 }
 
-auto AnimatedSprite::update(this AnimatedSprite& self) -> void {
+auto AnimatedSprite::update(this AnimatedSprite& self, float dt) -> void {
     if (self.frames.empty()) return;
 
-    const auto dt = GetFrameTime();
     self.time += dt;
 
-    if (self.time > self.frames[self.current_frame].duration) {
+    if (self.time > self.frames.at(self.current_frame).duration) {
         self.time = 0.0f;
         self.current_frame += 1;
         if (self.current_frame >= self.frames.size()) {
@@ -32,12 +43,21 @@ auto AnimatedSprite::update(this AnimatedSprite& self) -> void {
     }
 }
 
-auto AnimatedSprite::draw(this const AnimatedSprite& self, Rectangle dest, Vector2 origin, float rotation, Color tint)
-    -> void {
+auto AnimatedSprite::draw(
+    this const AnimatedSprite& self,
+    platform::Renderer& renderer,
+    Rect dest,
+    Vec2 origin,
+    float rotation,
+    Color tint
+) -> void {
     if (self.frames.empty()) return;
 
-    const auto src = self.frames[self.current_frame].rect;
-    DrawTexturePro(self.texture->texture(), src, dest, origin, rotation, tint);
+    const auto src = self.frames.at(self.current_frame).rect;
+    renderer.draw_texture(
+        self.texture->texture(),
+        {.source = src, .dest = dest, .origin = origin, .rotation = rotation, .tint = tint}
+    );
 }
 
 AtlasAsset::AtlasAsset(const std::string& path, entt::registry& registry) {
@@ -57,8 +77,14 @@ AtlasAsset::AtlasAsset(const std::string& path, entt::registry& registry) {
             std::make_shared<Sprite>(Sprite {
                 .texture = texture,
                 .frame = SpriteFrame {
-                    .rect = Rectangle {float(frame.x), float(frame.y), float(frame.w), float(frame.h)},
-                    .duration = float(frame.duration) * 1.0e-3f,
+                    .rect =
+                        Rect {
+                            .x = static_cast<float>(frame.x),
+                            .y = static_cast<float>(frame.y),
+                            .w = static_cast<float>(frame.w),
+                            .h = static_cast<float>(frame.h)
+                        },
+                    .duration = static_cast<float>(frame.duration) * 1.0e-3f,
                 },
             }),
         });

@@ -1,0 +1,20 @@
+{
+    "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+    "runtime.version": "Lua 5.4",
+    "runtime.path": ["lua/?.lua", "lua/?/init.lua"],
+    "workspace.library": ["./definitions"],
+    "workspace.ignoreDir": ["xmake.lua", "baursak.lua", "build", "vendor"],
+    "workspace.checkThirdParty": false,
+    "type.castNumberToInteger": false,
+    "diagnostics.severity": {
+        "param-type-mismatch": "Error",
+        "assign-type-mismatch": "Error",
+        "return-type-mismatch": "Error",
+        "undefined-field": "Error",
+        "missing-parameter": "Error",
+        "redundant-parameter": "Error",
+        "undefined-global": "Error",
+        "lowercase-global": "Error",
+        "inject-field": "Error"
+    }
+}

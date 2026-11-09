@@ -2,7 +2,7 @@
 
 namespace glint {
 
-static inline auto import_dim2(entt::registry& registry, const ModuleConfig& config) -> void {
+static auto import_dim2(entt::registry& registry, const ModuleConfig& config) -> void {
     (void)config;
 
     dim2::physics_module().import(registry);

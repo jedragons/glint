@@ -10,7 +10,7 @@
 -- The actual build is still owned by CMake; this only drives it with
 -- `import("package.tools.cmake")` and installs its outputs into the package
 -- dir. All of glint's dependencies (raylib, sol2, fmt, lua, entt, nlohmann
--- json, wtr, raylib-nuklear) are vendored under ./vendor/ and built as part
+-- json, wtr) are vendored under ./vendor/ and built as part
 -- of the same CMake tree, so `cmake --install` already produces every
 -- lib/*.a and include/ header glint needs -- nothing is fetched from
 -- xmake-repo, and consumers don't need any add_deps() beyond "cmake" itself.
@@ -21,8 +21,8 @@ package("glint")
 
     add_deps("cmake")
 
-    -- These libs have real cross-dependencies on each other (glint ->
-    -- glint-module-nuklear -> glint-module-dim2 -> glint-core -> glint-vfs,
+    -- These libs have real cross-dependencies on each other (glint -> glint-module-dim2
+    -- -> glint-core -> glint-vfs,
     -- etc). xmake's automatic package link detection (scanning lib/*.a)
     -- comes out alphabetical, which breaks single-pass linking here (e.g.
     -- "glint-core.a" sorts before "glint.a", so glint's own undefined
@@ -30,9 +30,9 @@ package("glint")
     -- xmake ends up using stops mattering.
     add_syslinks(
         "glint",
-        "glint-module-nuklear",
         "glint-module-dim2",
         "glint-module-audio",
+        "glint-module-platform",
         "glint-core",
         "glint-vfs",
         "raylib",

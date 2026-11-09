@@ -1,7 +1,8 @@
 #include <glint/config.hpp>
 
+#include <glint/core/core.hpp>
 #include <glint/dim2.hpp>
-#include <glint/nuklear.hpp>
+#include <glint/platform.hpp>
 
 namespace glint {
 
@@ -45,7 +46,7 @@ auto Config::set_vsync(bool vsync) -> Config& {
     return *this;
 }
 
-auto Config::set_log_level(core::LogLevel log_level) -> Config& {
+auto Config::set_log_level(LogLevel log_level) -> Config& {
     log_level = log_level;
     return *this;
 }
@@ -56,10 +57,7 @@ auto Config::set_initial_behavior(std::string name) -> Config& {
 }
 
 auto Config::add_default_modules() -> Config& {
-    add_module(core_module());
-    add_module(dim2_module());
-    add_module(nuklear_module());
-    return *this;
+    return this->add_module(core_module()).add_module(dim2_module());
 }
 
 auto Config::add_module(Module mod) -> Config& {

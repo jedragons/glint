@@ -14,7 +14,7 @@ class Resource {
   public:
     Resource() = default;
 
-    explicit Resource(std::shared_ptr<Asset> handle) : m_handle(handle) {}
+    explicit Resource(std::shared_ptr<Asset> handle) : m_handle(std::move(handle)) {}
 
     static auto load(const std::string& path, entt::registry& registry) {
         return Resource(std::make_shared<Asset>(Asset::load(path, registry)));
@@ -36,7 +36,7 @@ class Resource {
     }
 
     [[nodiscard]]
-    operator Asset&() const noexcept {
+    explicit operator Asset&() const noexcept {
         return *m_handle;
     }
 

@@ -1,15 +1,18 @@
-function Setup(e)
+local m = {}
+
+function m.setup(e)
 	log_info("Log from Lua!")
 	Timer.set(e, 2, TimerMode.repeating)
-	-- local t = Timer.get(e)
 end
 
-function Update(e)
+function m.update(e)
 	if Timer.get(e):tick().is_finished then
 		log_info("Game timer tick!")
 	end
 end
 
-function Destroy(e)
+function m.destroy(e)
 	log_info("Destroing game!")
 end
+
+return m

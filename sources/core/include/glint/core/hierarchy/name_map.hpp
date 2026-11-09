@@ -33,7 +33,7 @@ class NameComp {
     static auto on_update(entt::registry& registry, entt::entity e) -> void;
     static auto on_destroy(entt::registry& registry, entt::entity e) -> void;
 
-    NameComp(std::string name) noexcept;
+    explicit NameComp(std::string name) noexcept;
 
     [[nodiscard]]
     auto name() const noexcept -> const std::string&;

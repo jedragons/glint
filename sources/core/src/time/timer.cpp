@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-#include <raylib.h>
+#include <glint/platform.hpp>
 
 namespace glint::core {
 
@@ -92,10 +92,6 @@ auto Timer::almost_finish(this Timer& self) -> Timer& {
     return self;
 }
 
-auto Timer::tick(this Timer& self) -> Timer& {
-    return self.tick(GetFrameTime());
-}
-
 auto Timer::tick(this Timer& self, float dt) -> Timer& {
     if (self.is_paused()) {
         self.m_times_finished_this_tick = 0;
@@ -120,7 +116,7 @@ auto Timer::tick(this Timer& self, float dt) -> Timer& {
                 self.m_times_finished_this_tick = UINT32_MAX;
                 self.set_elapsed(0.0f);
             } else {
-                self.m_times_finished_this_tick = uint32_t(self.elapsed() / self.duration());
+                self.m_times_finished_this_tick = static_cast<uint32_t>(self.elapsed() / self.duration());
                 self.set_elapsed(std::remainderf(self.elapsed(), self.duration()));
             }
         } else {

@@ -1,17 +1,17 @@
 #include <glint/core/types/bindings.hpp>
 
 #include <entt/entity/registry.hpp>
-#include <raylib.h>
 #include <sol/sol.hpp>
 
 #include <glint/core/lua.hpp>
+#include <glint/math.hpp>
 
 namespace glint::core {
 
 auto bind_vector2(entt::registry& registry) -> void {
     auto lua = get_lua(registry);
 
-    lua.new_usertype<Vector2>(
+    lua.new_usertype<Vec2>(
         /*@
           ---@class Vec2
           ---@field x number
@@ -29,25 +29,33 @@ auto bind_vector2(entt::registry& registry) -> void {
           ---@return Vec2
           function Vec2.new() end
          */
-        sol::constructors<Vector2(), Vector2(float, float)>(),
+        sol::constructors<Vec2(), Vec2(float, float)>(),
 
         "x",
-        &Vector2::x,
+        &Vec2::x,
 
         "y",
-        &Vector2::y,
+        &Vec2::y,
 
         sol::meta_function::addition,
-        [](const Vector2& a, const Vector2& b) -> Vector2 { return {a.x + b.x, a.y + b.y}; },
+        [](const Vec2& a, const Vec2& b) -> Vec2 {
+            return a + b;
+        },
 
         sol::meta_function::subtraction,
-        [](const Vector2& a, const Vector2& b) -> Vector2 { return {a.x - b.x, a.y - b.y}; },
+        [](const Vec2& a, const Vec2& b) -> Vec2 {
+            return a - b;
+        },
 
         sol::meta_function::multiplication,
-        [](const Vector2& a, const Vector2& b) -> Vector2 { return {a.x * b.x, a.y * b.y}; },
+        [](const Vec2& a, const Vec2& b) -> Vec2 {
+            return a * b;
+        },
 
         sol::meta_function::division,
-        [](const Vector2& a, const Vector2& b) -> Vector2 { return {a.x / b.x, a.y / b.y}; },
+        [](const Vec2& a, const Vec2& b) -> Vec2 {
+            return a / b;
+        },
 
         /*@
           ---@param scale number
@@ -55,14 +63,16 @@ auto bind_vector2(entt::registry& registry) -> void {
           function Vec2:scale(scale) end
          */
         "scale",
-        [](const Vector2& a, float scale) -> Vector2 { return {a.x * scale, a.y * scale}; }
+        [](const Vec2& a, float scale) -> Vec2 {
+            return a.scale(scale);
+        }
     );
 }
 
 auto bind_rectangle(entt::registry& registry) -> void {
     auto lua = get_lua(registry);
 
-    lua.new_usertype<Rectangle>(
+    lua.new_usertype<Rect>(
         /*@
           ---@class Rect
           ---@field x number
@@ -78,19 +88,19 @@ auto bind_rectangle(entt::registry& registry) -> void {
           ---@return Rect
           function Rect.new() end
         */
-        sol::constructors<Rectangle(), Rectangle(float, float, float, float)>(),
+        sol::constructors<Rect(), Rect(float, float, float, float)>(),
 
         "x",
-        &Rectangle::x,
+        &Rect::x,
 
         "y",
-        &Rectangle::y,
+        &Rect::y,
 
         "w",
-        &Rectangle::width,
+        &Rect::w,
 
         "h",
-        &Rectangle::height
+        &Rect::h
     );
 }
 
@@ -129,7 +139,6 @@ auto bind_color(entt::registry& registry) -> void {
           ---@field black Color
           ---@field blank Color
           ---@field magenta Color
-          ---@field raywhite Color
           Color = {}
          */
         "Color",
@@ -143,10 +152,18 @@ auto bind_color(entt::registry& registry) -> void {
          */
         "new",
         sol::factories(
-            []() -> Color { return {}; },
-            [](unsigned int hex) -> Color { return GetColor(hex); },
-            [](unsigned char r, unsigned char g, unsigned char b) -> Color { return {r, g, b, 255}; },
-            [](unsigned char r, unsigned char g, unsigned char b, unsigned char a) -> Color { return {r, g, b, a}; }
+            []() -> Color {
+                return {};
+            },
+            [](unsigned int hex) -> Color {
+                return Color::from_hex(hex);
+            },
+            [](unsigned char r, unsigned char g, unsigned char b) -> Color {
+                return {.r = r, .g = g, .b = b, .a = 255};
+            },
+            [](unsigned char r, unsigned char g, unsigned char b, unsigned char a) -> Color {
+                return {.r = r, .g = g, .b = b, .a = a};
+            }
         ),
 
         "r",
@@ -162,82 +179,129 @@ auto bind_color(entt::registry& registry) -> void {
         &Color::a,
 
         "lightgray",
-        sol::property([]() -> Color { return LIGHTGRAY; }),
+        sol::property([]() -> Color {
+            return LightGray;
+        }),
 
         "gray",
-        sol::property([]() -> Color { return GRAY; }),
+        sol::property([]() -> Color {
+            return Gray;
+        }),
 
         "darkgray",
-        sol::property([]() -> Color { return DARKGRAY; }),
+        sol::property([]() -> Color {
+            return DarkGray;
+        }),
 
         "yellow",
-        sol::property([]() -> Color { return YELLOW; }),
+        sol::property([]() -> Color {
+            return Yellow;
+        }),
 
         "gold",
-        sol::property([]() -> Color { return GOLD; }),
+        sol::property([]() -> Color {
+            return Gold;
+        }),
 
         "orange",
-        sol::property([]() -> Color { return ORANGE; }),
+        sol::property([]() -> Color {
+            return Orange;
+        }),
 
         "pink",
-        sol::property([]() -> Color { return PINK; }),
+        sol::property([]() -> Color {
+            return Pink;
+        }),
 
         "red",
-        sol::property([]() -> Color { return RED; }),
+        sol::property([]() -> Color {
+            return Red;
+        }),
 
         "maroon",
-        sol::property([]() -> Color { return MAROON; }),
+        sol::property([]() -> Color {
+            return Maroon;
+        }),
 
         "green",
-        sol::property([]() -> Color { return GREEN; }),
+        sol::property([]() -> Color {
+            return Green;
+        }),
 
         "lime",
-        sol::property([]() -> Color { return LIME; }),
+        sol::property([]() -> Color {
+            return Lime;
+        }),
 
         "darkgreen",
-        sol::property([]() -> Color { return DARKGREEN; }),
+        sol::property([]() -> Color {
+            return DarkGreen;
+        }),
 
         "skyblue",
-        sol::property([]() -> Color { return SKYBLUE; }),
+        sol::property([]() -> Color {
+            return SkyBlue;
+        }),
 
         "blue",
-        sol::property([]() -> Color { return BLUE; }),
+        sol::property([]() -> Color {
+            return Blue;
+        }),
 
         "darkblue",
-        sol::property([]() -> Color { return DARKBLUE; }),
+        sol::property([]() -> Color {
+            return DarkBlue;
+        }),
 
         "purple",
-        sol::property([]() -> Color { return PURPLE; }),
+        sol::property([]() -> Color {
+            return Purple;
+        }),
 
         "violet",
-        sol::property([]() -> Color { return VIOLET; }),
+        sol::property([]() -> Color {
+            return Violet;
+        }),
 
         "darkpurple",
-        sol::property([]() -> Color { return DARKPURPLE; }),
+        sol::property([]() -> Color {
+            return DarkPurple;
+        }),
 
         "beige",
-        sol::property([]() -> Color { return BEIGE; }),
+        sol::property([]() -> Color {
+            return Beige;
+        }),
 
         "brown",
-        sol::property([]() -> Color { return BROWN; }),
+        sol::property([]() -> Color {
+            return Brown;
+        }),
 
         "darkbrown",
-        sol::property([]() -> Color { return DARKBROWN; }),
+        sol::property([]() -> Color {
+            return DarkBrown;
+        }),
 
         "white",
-        sol::property([]() -> Color { return WHITE; }),
+        sol::property([]() -> Color {
+            return White;
+        }),
 
         "black",
-        sol::property([]() -> Color { return BLACK; }),
+        sol::property([]() -> Color {
+            return Black;
+        }),
 
         "blank",
-        sol::property([]() -> Color { return BLANK; }),
+        sol::property([]() -> Color {
+            return Blank;
+        }),
 
         "magenta",
-        sol::property([]() -> Color { return MAGENTA; }),
-
-        "raywhite",
-        sol::property([]() -> Color { return RAYWHITE; })
+        sol::property([]() -> Color {
+            return Magenta;
+        })
     );
 }
 

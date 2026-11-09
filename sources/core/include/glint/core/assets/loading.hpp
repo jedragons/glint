@@ -4,7 +4,6 @@
 #include <string>
 
 #include <entt/entity/registry.hpp>
-#include <raylib.h>
 
 #include <glint/core/assets/asset.hpp>
 #include <glint/core/assets/cache.hpp>
@@ -32,7 +31,7 @@ auto load_asset(entt::registry& registry, const std::string& path) -> Resource<A
     auto [asset, is_loaded] = cache.load(path, registry);
 
     if (is_loaded) {
-        TraceLog(LOG_INFO, "[ASSET] %s loaded successfully", path.c_str());
+        log_info("[ASSET] {} loaded successfully", path.c_str());
 #if GLINT_HOT_RELOAD_ASSETS
         auto& watcher = registry.ctx().get<AssetWatcher>();
         auto& vfs = registry.ctx().get<std::unique_ptr<vfs::Vfs>>();

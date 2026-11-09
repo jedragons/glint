@@ -49,7 +49,9 @@ inline auto Vfs::mount(std::string point, Args... args) -> void {
 
     if (!std::ranges::contains(m_points, point)) {
         m_points.emplace_back(point);
-        std::ranges::stable_sort(m_points, [](const auto& a, const auto& b) -> bool { return a > b; });
+        std::ranges::stable_sort(m_points, [](const auto& a, const auto& b) -> bool {
+            return a > b;
+        });
     }
 }
 

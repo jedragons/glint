@@ -9,10 +9,10 @@
 #include <vector>
 
 #include <nlohmann/json.hpp>
-#include <raylib.h>
 
 #include <glint/core/assets.hpp>
 #include <glint/core/texture.hpp>
+#include <glint/math.hpp>
 
 namespace glint::dim2 {
 
@@ -31,7 +31,7 @@ struct SpriteAtlasMeta {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SpriteAtlasMeta, animations, frames);
 
 struct SpriteFrame {
-    Rectangle rect {};
+    Rect rect {};
     float duration {};
 };
 
@@ -39,7 +39,8 @@ struct Sprite {
     core::Resource<core::TextureAsset> texture;
     SpriteFrame frame;
 
-    auto draw(this const Sprite& self, Rectangle dest, Vector2 origin, float rotation, Color tint) -> void;
+    auto draw(this const Sprite& self, platform::Renderer& renderer, Rect dest, Vec2 origin, float rotation, Color tint)
+        -> void;
 };
 
 struct AnimatedSprite {
@@ -50,9 +51,16 @@ struct AnimatedSprite {
 
     auto frame(this const AnimatedSprite& self) -> std::optional<SpriteFrame>;
 
-    auto update(this AnimatedSprite& self) -> void;
+    auto update(this AnimatedSprite& self, float dt) -> void;
 
-    auto draw(this const AnimatedSprite& self, Rectangle dest, Vector2 origin, float rotation, Color tint) -> void;
+    auto draw(
+        this const AnimatedSprite& self,
+        platform::Renderer& renderer,
+        Rect dest,
+        Vec2 origin,
+        float rotation,
+        Color tint
+    ) -> void;
 };
 
 class AtlasAsset {

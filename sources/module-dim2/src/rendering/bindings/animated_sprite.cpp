@@ -40,8 +40,7 @@ auto bind_animated_sprite(entt::registry& registry) -> void {
         "set",
         sol::overload(
             [](entt::handle& e, const std::string& atlas, const std::string& animation) -> AnimatedSpriteComp& {
-                return e.emplace_or_replace<AnimatedSpriteComp>(load_atlas(*e.registry(), atlas)->animation(animation)
-                );
+                return e.emplace_or_replace<AnimatedSpriteComp>(load_atlas(*e.registry(), atlas)->animation(animation));
             },
             [](entt::handle& e, const AnimatedSpriteComp& animation) -> AnimatedSpriteComp& {
                 return e.emplace_or_replace<AnimatedSpriteComp>(animation);

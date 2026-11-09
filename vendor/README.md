@@ -14,6 +14,21 @@ Files extracted:
 - src/
 - CMakeLists.txt
 
+## GSL
+
+- Upstream: https://github.com/microsoft/GSL
+- Version: [v5.0.1](https://github.com/microsoft/GSL/releases/tag/v5.0.1)
+- License: MIT
+
+Files extracted:
+
+- include/ (without CMakeLists.txt)
+- LICENSE
+
+Files added:
+
+- CMakeLists.txt
+
 ## FMT
 
 - Upstream: https://github.com/fmtlib/fmt

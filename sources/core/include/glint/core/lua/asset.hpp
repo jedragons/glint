@@ -25,7 +25,6 @@ class LuaAsset {
   private:
     std::shared_ptr<sol::state> state {};
     std::string path {};
-    sol::environment env {};
     sol::protected_function m_setup_func {};
     sol::protected_function m_destroy_func {};
     sol::protected_function m_update_func {};

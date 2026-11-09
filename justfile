@@ -3,9 +3,32 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
 configure:
     cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
-check: configure
+build:
     cmake --build build
+
+check: tidy luals-check cargo-check
+
+check-fix: tidy-fix luals-check cargo-check
+
+tidy *args: configure build
+    run-clang-tidy -quiet -p build 'sources/.*\.cpp$' 'sources/.*\.hpp$' {{ args }}
+
+tidy-fix: (tidy "-fix")
+
+luals-check:
+    lua-language-server --check=. --configpath=.luarc.json --checklevel=Warning --logpath=build/lua-check
+
+cargo-check:
     cargo check --workspace
+
+fmt:
+    #!/usr/bin/env sh
+    set -euio pipefail
+
+    find sources -iname *.hpp -o -iname *.cpp | xargs clang-format -i
+    stylua examples
+
+precommit: fmt check-fix
 
 prepare:
     cargo run -p lua-defgen -- sources definitions

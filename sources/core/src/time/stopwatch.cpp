@@ -1,7 +1,5 @@
 #include <glint/core/time/stopwatch.hpp>
 
-#include <raylib.h>
-
 namespace glint::core {
 
 auto Stopwatch::elapsed(this const Stopwatch& self) -> float {
@@ -20,11 +18,6 @@ auto Stopwatch::reset(this Stopwatch& self) -> Stopwatch& {
 
 auto Stopwatch::set_elapsed(this Stopwatch& self, float elapsed) -> Stopwatch& {
     self.m_elapsed = elapsed;
-    return self;
-}
-
-auto Stopwatch::tick(this Stopwatch& self) -> Stopwatch& {
-    if (!self.m_is_paused) self.m_elapsed += GetFrameTime();
     return self;
 }
 

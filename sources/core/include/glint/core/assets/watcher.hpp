@@ -10,13 +10,13 @@
 
 #include <entt/entity/registry.hpp>
 #include <fmt/format.h>
-#include <raylib.h>
 #include <wtr/watcher.hpp>
 
 #include <glint/core/assets/asset.hpp>
 #include <glint/core/assets/cache.hpp>
 #include <glint/core/assets/concurrent_queue.hpp>
 #include <glint/core/assets/resource.hpp>
+#include <glint/platform/log.hpp>
 
 namespace glint::core {
 
@@ -55,14 +55,9 @@ inline auto AssetWatcher::register_asset(entt::registry& registry) -> void {
                 auto asset = *cache.get(path);
                 try {
                     asset->reload(path, registry);
-                    TraceLog(LOG_INFO, "[ASSET] %s reloaded successfully", path.c_str());
+                    log_info("[ASSET] {} reloaded successfully", path);
                 } catch (const std::exception& e) {
-                    TraceLog(
-                        LOG_ERROR,
-                        "[ASSET] ERROR: exception occured while reloading %s: %s",
-                        path.c_str(),
-                        e.what()
-                    );
+                    log_error("[ASSET] ERROR: exception occured while reloading {}: {}", path, e.what());
                 }
             }
         });

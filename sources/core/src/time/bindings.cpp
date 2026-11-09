@@ -4,6 +4,7 @@
 
 #include <glint/core/lua.hpp>
 #include <glint/core/time.hpp>
+#include <glint/core/windowing.hpp>
 
 namespace glint::core {
 
@@ -37,8 +38,12 @@ auto bind_stopwatch(entt::registry& registry) -> void {
         */
         "set",
         sol::overload(
-            [](entt::handle& h, const Stopwatch& sw) -> Stopwatch& { return h.emplace<Stopwatch>(sw); },
-            [](entt::handle& h) -> Stopwatch& { return h.emplace<Stopwatch>(); }
+            [](entt::handle& h, const Stopwatch& sw) -> Stopwatch& {
+                return h.emplace<Stopwatch>(sw);
+            },
+            [](entt::handle& h) -> Stopwatch& {
+                return h.emplace<Stopwatch>();
+            }
         ),
 
         /*@
@@ -76,8 +81,8 @@ auto bind_stopwatch(entt::registry& registry) -> void {
         */
         "tick",
         sol::overload(
-            [](Stopwatch& self) -> Stopwatch& {
-                return self.tick();
+            [&registry](Stopwatch& self) -> Stopwatch& {
+                return self.tick(static_cast<float>(get_window(registry).frame_time()));
             },
             [](Stopwatch& self, float dt) -> Stopwatch& {
                 return self.tick(dt);
@@ -113,10 +118,10 @@ auto bind_timer(entt::registry& registry) -> void {
         "TimerMode",
 
         "once",
-        int(TimerMode::Once),
+        static_cast<int>(TimerMode::Once),
 
         "repeating",
-        int(TimerMode::Repeating)
+        static_cast<int>(TimerMode::Repeating)
     );
 
     lua.new_usertype<Timer>(
@@ -180,8 +185,12 @@ auto bind_timer(entt::registry& registry) -> void {
         */
         "set",
         sol::overload(
-            [](entt::handle& h, float duration, TimerMode mode) -> void { h.emplace<Timer>(duration, mode); },
-            [](entt::handle& h, const Timer& timer) -> void { h.emplace<Timer>(timer); }
+            [](entt::handle& h, float duration, TimerMode mode) -> void {
+                h.emplace<Timer>(duration, mode);
+            },
+            [](entt::handle& h, const Timer& timer) -> void {
+                h.emplace<Timer>(timer);
+            }
         ),
 
         /*@
@@ -235,8 +244,8 @@ auto bind_timer(entt::registry& registry) -> void {
         */
         "tick",
         sol::overload(
-            [](Timer& self) -> Timer& {
-                return self.tick();
+            [&registry](Timer& self) -> Timer& {
+                return self.tick(static_cast<float>(get_window(registry).frame_time()));
             },
             [](Timer& self, float dt) -> Timer& {
                 return self.tick(dt);

@@ -82,13 +82,17 @@ auto bind_entity(entt::registry& registry) -> void {
           function Entity:valid() end
          */
         "valid",
-        [](entt::handle& handle) -> bool { return handle.valid(); },
+        [](entt::handle& handle) -> bool {
+            return handle.valid();
+        },
 
         /*@
           function Entity:destroy() end
          */
         "destroy",
-        [](entt::handle& handle) -> void { handle.destroy(); },
+        [](entt::handle& handle) -> void {
+            handle.destroy();
+        },
 
         /*@
           ---@param path string

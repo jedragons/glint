@@ -1,13 +1,11 @@
 #include <glint/glint.hpp>
 
-#include <exception>
 #include <ranges>
 
-#include <raylib.h>
+#include <gsl/gsl>
 
-#include <glint/core/assets.hpp>
-#include <glint/core/lua.hpp>
-#include <glint/core/vfs.hpp>
+#include <glint/core/core.hpp>
+#include <glint/platform.hpp>
 
 namespace glint {
 
@@ -30,7 +28,13 @@ static inline auto copy_module_hooks(GameHooks& hooks, const Module& mod) -> voi
     copy_hook(hooks.render, mod.hooks.render);
 }
 
-Game::Game(const Config& config) : m_window(config.window) {
+Game::Game(const Config& config) :
+    m_window(Window::create(config.window)),
+    m_renderer(Renderer::create()),
+    m_audio_device(AudioDevice::create()) {
+    core::set_window(m_reg, m_window);
+    core::set_renderer(m_reg, m_renderer);
+
     for (const auto& module : config.modules) {
         module.import(m_reg);
     }
@@ -45,11 +49,13 @@ Game::Game(const Config& config) : m_window(config.window) {
 
     auto mount_points = config.mount_points;
     if (mount_points.empty()) {
-        mount_points.emplace_back(MountConfig {.point = "/", .root = GetWorkingDirectory(), .kind = MountKind::Native});
+        mount_points.emplace_back(
+            MountConfig {.point = "/", .root = platform::get_working_directory(), .kind = MountKind::Native}
+        );
     }
 
     for (const auto& mount : mount_points) {
-        TraceLog(LOG_INFO, "Mounting %s to %s", mount.point.c_str(), mount.root.c_str());
+        log_info("Mounting {} to {}", mount.point.c_str(), mount.root.c_str());
         vfs.mount(mount.point, mount.root);
     }
 
@@ -68,26 +74,44 @@ auto Game::registry() const -> const entt::registry& {
     return m_reg;
 }
 
-auto Game::run() -> int try {
-    while (!WindowShouldClose()) {
-        frame();
-    }
-    return 0;
-} catch (const std::exception& e) {
-    TraceLog(LOG_ERROR, "Exception occured while running game: %s", e.what());
-    return 1;
-}
-
-auto Game::is_running() -> bool {
-    return !WindowShouldClose();
-}
+auto Game::init() -> void {}
 
 auto Game::frame() -> void {
     call_hooks(m_hooks.update, m_reg);
-    BeginDrawing();
-    ClearBackground(BLACK);
+    core::get_renderer(m_reg).clear_background(Black);
     call_hooks(m_hooks.render, m_reg);
-    EndDrawing();
+}
+
+auto Game::close() -> void {
+    platform::log_info("Closing game");
+    glint::call_hooks(m_hooks.unload, m_reg);
 }
 
 } // namespace glint
+
+extern "C" {
+
+auto glint_init(void** app, int argc, char** argv) -> GlintAppResult {
+    (void)argc;
+    (void)argv;
+
+    auto config = glint_main();
+    auto game = gsl::owner<glint::Game*>(new glint::Game {config});
+    game->init();
+    *app = static_cast<void*>(game);
+    return GLINT_APP_CONTINUE;
+}
+
+auto glint_frame(void* app) -> GlintAppResult {
+    auto& game = *static_cast<glint::Game*>(app);
+    game.frame();
+    return GLINT_APP_CONTINUE;
+}
+
+auto glint_close(void* app) -> GlintAppResult {
+    auto game = gsl::owner<glint::Game*>(app);
+    game->close();
+    delete game;
+    return GLINT_APP_CLOSE;
+}
+}

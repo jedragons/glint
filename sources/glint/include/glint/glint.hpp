@@ -7,6 +7,7 @@
 #include <glint/config.hpp>
 #include <glint/core/core.hpp>
 #include <glint/module.hpp>
+#include <glint/platform.hpp>
 
 namespace glint {
 
@@ -21,7 +22,7 @@ struct GameHooks {
 
 class Game final {
   public:
-    Game(const Config& config = default_config());
+    explicit Game(const Config& config = default_config());
 
     [[nodiscard]]
     auto registry() -> entt::registry&;
@@ -29,16 +30,22 @@ class Game final {
     [[nodiscard]]
     auto registry() const -> const entt::registry&;
 
-    auto run() -> int;
-
-    auto is_running() -> bool;
-
-    auto frame() -> void;
-
   private:
     entt::registry m_reg {};
     GameHooks m_hooks {};
-    core::Window m_window {};
+    Window m_window;
+    Renderer m_renderer;
+    AudioDevice m_audio_device;
+
+    auto init() -> void;
+    auto frame() -> void;
+    auto close() -> void;
+
+    friend auto ::glint_init(void** app, int argc, char** argv) -> GlintAppResult;
+    friend auto ::glint_frame(void* app) -> GlintAppResult;
+    friend auto ::glint_close(void* app) -> GlintAppResult;
 };
 
 } // namespace glint
+
+auto glint_main() -> glint::Config;

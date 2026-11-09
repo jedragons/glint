@@ -58,7 +58,6 @@ function Rect.new() end
 ---@field black Color
 ---@field blank Color
 ---@field magenta Color
----@field raywhite Color
 Color = {}
 
 ---@overload fun(hex: integer): Color

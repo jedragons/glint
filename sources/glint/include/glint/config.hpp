@@ -1,7 +1,7 @@
 #pragma once
 
-#include <glint/core/core.hpp>
 #include <glint/module.hpp>
+#include <glint/platform.hpp>
 
 namespace glint {
 
@@ -19,7 +19,7 @@ struct MountConfig {
 };
 
 struct Config {
-    core::WindowConfig window = {};
+    WindowConfig window = {};
     std::string initial_module = {};
     std::vector<MountConfig> mount_points = {};
     std::vector<Module> modules = {};
@@ -33,7 +33,7 @@ struct Config {
     auto set_screen_height(int screen_height) -> Config&;
     auto set_window_resizable(bool resizable = true) -> Config&;
     auto set_vsync(bool vsync = true) -> Config&;
-    auto set_log_level(core::LogLevel log_level) -> Config&;
+    auto set_log_level(LogLevel log_level) -> Config&;
     auto set_initial_behavior(std::string name) -> Config&;
     auto add_default_modules() -> Config&;
     auto add_module(Module mod) -> Config&;

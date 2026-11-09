@@ -27,7 +27,9 @@ auto bind_atlas(entt::registry& registry) -> void {
           function Atlas.load(path) end
          */
         "load",
-        [&registry](const std::string& path) -> AtlasComp { return {load_atlas(registry, path)}; },
+        [&registry](const std::string& path) -> AtlasComp {
+            return {load_atlas(registry, path)};
+        },
 
         /*@
           ---@param name string
@@ -35,7 +37,9 @@ auto bind_atlas(entt::registry& registry) -> void {
           function Atlas:animation(name) end
          */
         "animation",
-        [](AtlasComp& atlas, const std::string& name) -> AnimatedSpriteComp { return {atlas.atlas->animation(name)}; },
+        [](AtlasComp& atlas, const std::string& name) -> AnimatedSpriteComp {
+            return {atlas.atlas->animation(name)};
+        },
 
         /*@
           ---@param name string
@@ -43,7 +47,9 @@ auto bind_atlas(entt::registry& registry) -> void {
           function Atlas:sprite(name) end
          */
         "sprite",
-        [](AtlasComp& atlas, const std::string& name) -> SpriteComp { return {atlas.atlas->sprite(name)}; }
+        [](AtlasComp& atlas, const std::string& name) -> SpriteComp {
+            return {atlas.atlas->sprite(name)};
+        }
     );
 }
 

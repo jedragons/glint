@@ -1,8 +1,6 @@
 add_library(glint-module-audio STATIC)
 
-target_sources(glint-module-audio PRIVATE
-    ./src/audio.cpp
-)
+target_sources(glint-module-audio PRIVATE ./src/lib.cpp)
 
 set_target_properties(glint-module-audio PROPERTIES
     CXX_STANDARD 23
@@ -14,8 +12,7 @@ target_include_directories(glint-module-audio PUBLIC
 
 target_link_libraries(glint-module-audio PUBLIC
     glint-module
-
-    raylib
+    glint-platform
 )
 
 install(TARGETS glint-module-audio

@@ -4,9 +4,9 @@
 #include <vector>
 
 #include <entt/fwd.hpp>
-#include <raylib.h>
 
 #include <glint/core/assets/asset.hpp>
+#include <glint/platform.hpp>
 
 namespace glint::core {
 
@@ -20,10 +20,10 @@ class TextureAsset {
     auto reload(this TextureAsset& self, const std::string& path, entt::registry&) -> void;
 
     [[nodiscard]]
-    auto texture(this const TextureAsset& self) -> Texture2D;
+    auto texture(this const TextureAsset& self) -> const Texture&;
 
   private:
-    Texture2D m_texture {};
+    Texture m_texture {};
 };
 
 static_assert(is_asset<TextureAsset>);

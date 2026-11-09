@@ -6,6 +6,7 @@
 
 #include <glint/core/lua.hpp>
 #include <glint/dim2/physics/transform.hpp>
+#include <glint/math.hpp>
 
 namespace glint::dim2 {
 
@@ -28,7 +29,7 @@ auto bind_transform(entt::registry& registry) -> void {
           ---@return Transform2D
           function Transform2D.new() end
          */
-        sol::constructors<Transform2D(), Transform2D(Vector2, Vector2, Vector2, float)>(),
+        sol::constructors<Transform2D(), Transform2D(Vec2, Vec2, Vec2, float)>(),
 
         "position",
         &Transform2D::position,
@@ -52,8 +53,10 @@ auto bind_transform(entt::registry& registry) -> void {
          */
         "set",
         sol::overload(
-            [](entt::handle& e) -> Transform2D& { return e.emplace_or_replace<Transform2D>(); },
-            [](entt::handle& e, Vector2& position, Vector2& scale, Vector2& origin, float rotation) -> Transform2D& {
+            [](entt::handle& e) -> Transform2D& {
+                return e.emplace_or_replace<Transform2D>();
+            },
+            [](entt::handle& e, Vec2& position, Vec2& scale, Vec2& origin, float rotation) -> Transform2D& {
                 return e.emplace_or_replace<Transform2D>(position, scale, origin, rotation);
             },
             [](entt::handle& e, const Transform2D& transform) -> Transform2D& {

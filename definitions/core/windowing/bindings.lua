@@ -1,13 +1,11 @@
 ---@meta
 
----@return number
-function get_dt() end
-
----@return integer
-function get_screen_width() end
-
----@return integer
-function get_screen_height() end
+---@class Window
+---@field dt number
+---@field time number
+---@field width integer
+---@field height integer
+Window = {}
 
 ---@param ... any
 function log_trace(...) end

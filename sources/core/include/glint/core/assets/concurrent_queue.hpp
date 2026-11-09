@@ -25,13 +25,13 @@ namespace glint::core {
 
 template<typename T>
 inline auto ConcurrentQueue<T>::push(T&& value) -> void {
-    auto lock = std::lock_guard(m_mutex);
+    auto lock = std::scoped_lock(m_mutex);
     m_queue.push(std::move(value));
 }
 
 template<typename T>
 inline auto ConcurrentQueue<T>::pop() -> std::optional<T> {
-    auto lock = std::lock_guard(m_mutex);
+    auto lock = std::scoped_lock(m_mutex);
     if (m_queue.empty()) return std::nullopt;
 
     auto value = m_queue.front();

@@ -12,15 +12,7 @@ TextureAsset::TextureAsset(const std::string& path, entt::registry& registry) {
     auto& vfs = get_vfs(registry);
     auto data = vfs.read(path);
     auto ext = std::filesystem::path(path).extension().string();
-
-    auto image = LoadImageFromMemory(
-        ext.c_str(),
-        // NOLINTNEXTLINE: Cast from char* to unsigned char* for raylib is safe
-        reinterpret_cast<const unsigned char*>(data.data()),
-        static_cast<int>(data.size())
-    );
-    m_texture = LoadTextureFromImage(image);
-    UnloadImage(image);
+    m_texture = Texture::load(ext, data);
 }
 
 auto TextureAsset::extensions() -> std::vector<std::string> {
@@ -35,7 +27,7 @@ auto TextureAsset::reload(this TextureAsset& self, const std::string& path, entt
     self = TextureAsset {path, registry};
 }
 
-auto TextureAsset::texture(this const TextureAsset& self) -> Texture2D {
+auto TextureAsset::texture(this const TextureAsset& self) -> const Texture& {
     return self.m_texture;
 }
 
