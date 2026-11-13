@@ -21,20 +21,11 @@ package("glint")
 
     add_deps("cmake")
 
-    -- These libs have real cross-dependencies on each other (glint -> glint-module-dim2
-    -- -> glint-core -> glint-vfs,
-    -- etc). xmake's automatic package link detection (scanning lib/*.a)
-    -- comes out alphabetical, which breaks single-pass linking here (e.g.
-    -- "glint-core.a" sorts before "glint.a", so glint's own undefined
-    -- symbols never get resolved). Wrap them in a linker group so the order
-    -- xmake ends up using stops mattering.
+    -- The whole engine builds as a single library (libglint.a), so there are
+    -- no cross-library ordering concerns anymore. Keep the third-party libs
+    -- in a group so their order doesn't matter either.
     add_syslinks(
         "glint",
-        "glint-module-dim2",
-        "glint-module-audio",
-        "glint-module-platform",
-        "glint-core",
-        "glint-vfs",
         "raylib",
         "fmt",
         "fmt-c",
