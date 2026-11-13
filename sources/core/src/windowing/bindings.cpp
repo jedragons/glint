@@ -63,11 +63,17 @@ auto bind_window(entt::registry& registry) -> void {
         })
     );
 
+    // NOTE: The unary + on each lambda forces conversion to a plain function
+    // pointer. mingw-g++ miscompiles bare capture-less lambdas registered via
+    // sol2: every `globals().set(name, lambda)` ends up pointing at the first
+    // registered closure, so all log_* calls landed in log_trace and were
+    // silently dropped by raylib's log threshold (only seen on Windows/wine).
+
     /*@
       ---@param ... any
       function log_trace(...) end
      */
-    lua.globals().set("log_trace", [](sol::variadic_args va) {
+    lua.globals().set("log_trace", +[](sol::variadic_args va) {
         lua_log(LogLevel::Trace, va);
     });
 
@@ -75,7 +81,7 @@ auto bind_window(entt::registry& registry) -> void {
       ---@param ... any
       function log_debug(...) end
      */
-    lua.globals().set("log_debug", [](sol::variadic_args va) {
+    lua.globals().set("log_debug", +[](sol::variadic_args va) {
         lua_log(LogLevel::Debug, va);
     });
 
@@ -83,7 +89,7 @@ auto bind_window(entt::registry& registry) -> void {
       ---@param ... any
       function log_info(...) end
      */
-    lua.globals().set("log_info", [](sol::variadic_args va) {
+    lua.globals().set("log_info", +[](sol::variadic_args va) {
         lua_log(LogLevel::Info, va);
     });
 
@@ -91,7 +97,7 @@ auto bind_window(entt::registry& registry) -> void {
       ---@param ... any
       function log_warn(...) end
      */
-    lua.globals().set("log_warn", [](sol::variadic_args va) {
+    lua.globals().set("log_warn", +[](sol::variadic_args va) {
         lua_log(LogLevel::Warn, va);
     });
 
@@ -99,7 +105,7 @@ auto bind_window(entt::registry& registry) -> void {
       ---@param ... any
       function log_error(...) end
      */
-    lua.globals().set("log_error", [](sol::variadic_args va) {
+    lua.globals().set("log_error", +[](sol::variadic_args va) {
         lua_log(LogLevel::Error, va);
     });
 
@@ -107,7 +113,7 @@ auto bind_window(entt::registry& registry) -> void {
       ---@param ... any
       function log_fatal(...) end
      */
-    lua.globals().set("log_fatal", [](sol::variadic_args va) {
+    lua.globals().set("log_fatal", +[](sol::variadic_args va) {
         lua_log(LogLevel::Error, va);
         throw sol::error("log_fatal called");
     });
