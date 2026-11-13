@@ -8,10 +8,9 @@ AnimatedSprite = {}
 ---@return AnimatedSprite
 function AnimatedSprite.load(atlas, name) end
 
----@overload fun(e: Entity, atlas: string, name: string): AnimatedSprite
+---@overload fun(e: Entity, atlas: string, name: string)
 ---@param e Entity
 ---@param animation AnimatedSprite
----@return AnimatedSprite
 function AnimatedSprite.set(e, animation) end
 
 ---@param e Entity

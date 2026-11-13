@@ -1,0 +1,27 @@
+set(prefix "${GLINT_BINARY_DIR}/package-test-prefix")
+set(consumer "${GLINT_BINARY_DIR}/package-test-consumer")
+include("${GLINT_SETTINGS}")
+
+function(run_checked)
+    execute_process(COMMAND ${ARGV} RESULT_VARIABLE result)
+    if(NOT result EQUAL 0)
+        message(FATAL_ERROR "Command failed (${result}): ${ARGV}")
+    endif()
+endfunction()
+
+set(config_option)
+if(NOT "${GLINT_CONFIG}" STREQUAL "")
+    list(APPEND config_option --config "${GLINT_CONFIG}")
+endif()
+run_checked("${CMAKE_COMMAND}" --install "${GLINT_BINARY_DIR}"
+    --prefix "${prefix}" ${config_option})
+set(generator_options -G "${GLINT_GENERATOR}")
+if(NOT "${GLINT_OUTER_CMAKE_GENERATOR_PLATFORM}" STREQUAL "")
+    list(APPEND generator_options -A "${GLINT_OUTER_CMAKE_GENERATOR_PLATFORM}")
+endif()
+if(NOT "${GLINT_OUTER_CMAKE_GENERATOR_TOOLSET}" STREQUAL "")
+    list(APPEND generator_options -T "${GLINT_OUTER_CMAKE_GENERATOR_TOOLSET}")
+endif()
+run_checked("${CMAKE_COMMAND}" -S "${GLINT_SOURCE_DIR}/tests/packaging" -B "${consumer}"
+    ${generator_options} -C "${GLINT_SETTINGS}" "-DCMAKE_PREFIX_PATH=${prefix}")
+run_checked("${CMAKE_COMMAND}" --build "${consumer}" ${config_option})
