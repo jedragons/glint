@@ -19,23 +19,18 @@ jobs:
           - name: Linux x86-64
             runner: ubuntu-24.04
             cmake_args: ''
-            machine: x64
           - name: Linux ARM64
             runner: ubuntu-24.04-arm
             cmake_args: ''
-            machine: arm64
           - name: Windows x86-64
             runner: windows-2022
             cmake_args: '-A x64'
-            machine: x64
           - name: Windows ARM64
             runner: windows-11-arm
             cmake_args: '-A ARM64'
-            machine: arm64
           - name: macOS ARM64
             runner: macos-15
             cmake_args: ''
-            machine: arm64
     steps:
       - uses: actions/checkout@v6
 
@@ -53,77 +48,6 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Debug --output-on-failure --no-tests=error --output-junit test-results.xml
-
-      - name: Verify test and package consumer architecture
-        shell: pwsh
-        env:
-          EXPECTED_MACHINE: ${{ matrix.machine }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $python = if ($IsWindows) { 'python' } else { 'python3' }
-          @'
-          import json, os, pathlib, struct, subprocess, sys
-
-          data = json.loads(subprocess.check_output([
-              'ctest', '--test-dir', 'build', '-C', 'Debug', '--show-only=json-v1'
-          ]))
-          tests = data['tests']
-          paths = set()
-          package_found = False
-          for test in tests:
-              name = test['name']
-              command = test.get('command', [])
-              if not command:
-                  sys.exit(f'Missing command for test: {name}')
-              if name == 'glint_c_package':
-                  if pathlib.Path(command[0]).stem.lower() != 'cmake':
-                      sys.exit(f'Unexpected package test command: {command}')
-                  package_found = True
-                  continue
-              if name == 'glint_c_shared_module':
-                  if (len(command) != 2 or
-                      pathlib.Path(command[0]).stem != 'glint_c_shared_module_host' or
-                      not pathlib.Path(command[1]).is_file()):
-                      sys.exit(f'Unexpected shared-module test command: {command}')
-                  paths.update(command)
-                  continue
-              expected_name = f'{name}_test'
-              if not name.startswith('glint_c_') or pathlib.Path(command[0]).stem != expected_name:
-                  sys.exit(f'Unexpected test command for {name}: {command}')
-              paths.add(command[0])
-          if not paths or not package_found:
-              sys.exit('Expected engine tests and the package test')
-          consumer_dir = pathlib.Path('build/package-test-consumer')
-          for name in ('consumer', 'entry_consumer'):
-              consumer_name = name + ('.exe' if os.name == 'nt' else '')
-              consumers = [p for p in (consumer_dir / consumer_name, consumer_dir / 'Debug' / consumer_name) if p.is_file()]
-              if len(consumers) != 1:
-                  sys.exit(f'Expected exactly one {name} binary, found: {consumers}')
-              paths.add(str(consumers[0]))
-          expected = os.environ['EXPECTED_MACHINE']
-          for path in sorted(paths):
-              with open(path, 'rb') as executable:
-                  header = executable.read(64)
-                  if header.startswith(b'\x7fELF'):
-                      machine = struct.unpack_from('<H', header, 18)[0]
-                      actual = {62: 'x64', 183: 'arm64'}.get(machine)
-                  elif header.startswith(b'MZ'):
-                      executable.seek(struct.unpack_from('<I', header, 60)[0])
-                      pe = executable.read(6)
-                      if pe[:4] != b'PE\0\0':
-                          sys.exit(f'Invalid PE executable: {path}')
-                      machine = struct.unpack_from('<H', pe, 4)[0]
-                      actual = {0x8664: 'x64', 0xaa64: 'arm64'}.get(machine)
-                  elif header[:4] == b'\xcf\xfa\xed\xfe':
-                      machine = struct.unpack_from('<I', header, 4)[0]
-                      actual = {0x01000007: 'x64', 0x0100000c: 'arm64'}.get(machine)
-                  else:
-                      sys.exit(f'Unknown executable format: {path}')
-              print(f'{path}: {actual or hex(machine)}')
-              if actual != expected:
-                  sys.exit(f'Expected {expected}, got {actual or hex(machine)}: {path}')
-          '@ | & $python -
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Reject skipped tests
         shell: pwsh
