@@ -9,9 +9,10 @@
 ---@operator div(Vec2): Vec2
 Vec2 = {}
 
----@overload fun(x: number, y: number): Vec2
+---@param x? number
+---@param y? number
 ---@return Vec2
-function Vec2.new() end
+function Vec2.new(x, y) end
 
 ---@param scale number
 ---@return Vec2
@@ -24,9 +25,12 @@ function Vec2:scale(scale) end
 ---@field h number
 Rect = {}
 
----@overload fun(x: number, y: number, w: number, h: number): Rect
+---@param x? number
+---@param y? number
+---@param w? number
+---@param h? number
 ---@return Rect
-function Rect.new() end
+function Rect.new(x, y, w, h) end
 
 ---@class Color
 ---@field r integer

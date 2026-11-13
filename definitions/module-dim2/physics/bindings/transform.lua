@@ -1,18 +1,21 @@
 ---@meta
 
+---A live reference to a transform vector with Vec2 arithmetic and methods.
+---@class TransformVec2: Vec2
+
 ---@class Transform2D
----@field position Vec2
----@field scale Vec2
----@field origin Vec2
+---@field position TransformVec2
+---@field scale TransformVec2
+---@field origin TransformVec2
 ---@field rotation number
 Transform2D = {}
 
----@overload fun(position: Vec2, scale: Vec2, origin: Vec2, rotation: Vec2): Transform2D
+---@overload fun(position: Vec2|TransformVec2, scale: Vec2|TransformVec2, origin: Vec2|TransformVec2, rotation: number): Transform2D
 ---@return Transform2D
 function Transform2D.new() end
 
----@overload fun(e): Transform2D
----@overload fun(e, position: Vec2, scale: Vec2, origin: Vec2, rotation: number): Transform2D
+---@overload fun(e: Entity): Transform2D
+---@overload fun(e: Entity, position: Vec2|TransformVec2, scale: Vec2|TransformVec2, origin: Vec2|TransformVec2, rotation: number): Transform2D
 ---@param e Entity
 ---@param comp Transform2D
 ---@return Transform2D

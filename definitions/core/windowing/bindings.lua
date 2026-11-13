@@ -1,11 +1,14 @@
 ---@meta
 
 ---@class Window
----@field dt number
----@field time number
----@field width integer
----@field height integer
+---@field dt number Read-only.
+---@field time number Read-only.
+---@field width integer Read-only.
+---@field height integer Read-only.
 Window = {}
+
+---@type Window
+window = nil
 
 ---@param ... any
 function log_trace(...) end

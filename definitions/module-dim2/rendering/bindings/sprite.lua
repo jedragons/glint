@@ -8,10 +8,9 @@ Sprite = {}
 ---@return Sprite
 function Sprite.load(atlas, sprite) end
 
----@overload fun(e: Entity, atlas: string, name: string): Sprite
+---@overload fun(e: Entity, atlas: string, name: string)
 ---@param e Entity
 ---@param sprite Sprite
----@return Sprite
 function Sprite.set(e, sprite) end
 
 ---@param e Entity

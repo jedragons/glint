@@ -1,7 +1,7 @@
 ---@meta
 
 ---@class Entity
----@field name string
+---@field name string|nil
 Entity = {}
 
 ---@param name string

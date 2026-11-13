@@ -1,0 +1,57 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x86-64
+            runner: ubuntu-24.04
+            cmake_args: ''
+          - name: Linux ARM64
+            runner: ubuntu-24.04-arm
+            cmake_args: ''
+          - name: Windows x86-64
+            runner: windows-2022
+            cmake_args: '-A x64'
+          - name: Windows ARM64
+            runner: windows-11-arm
+            cmake_args: '-A ARM64'
+          - name: macOS ARM64
+            runner: macos-15
+            cmake_args: ''
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev libwayland-dev libxkbcommon-dev wayland-protocols
+
+      - name: Configure
+        run: cmake -S . -B build -DGLINT_BUILD_C_TESTS=ON -DCMAKE_BUILD_TYPE=Debug ${{ matrix.cmake_args }}
+
+      - name: Build
+        run: cmake --build build --config Debug --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Debug --output-on-failure --no-tests=error --output-junit test-results.xml
+
+      - name: Reject skipped tests
+        shell: pwsh
+        run: |
+          [xml]$results = Get-Content build/test-results.xml -Raw
+          $skipped = @($results.SelectNodes('//testcase/skipped'))
+          if ($skipped.Count -gt 0) { throw "$($skipped.Count) test(s) skipped" }
