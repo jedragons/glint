@@ -37,7 +37,7 @@ jobs:
             cmake_args: ''
             machine: arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -79,6 +79,13 @@ jobs:
                   if pathlib.Path(command[0]).stem.lower() != 'cmake':
                       sys.exit(f'Unexpected package test command: {command}')
                   package_found = True
+                  continue
+              if name == 'glint_c_shared_module':
+                  if (len(command) != 2 or
+                      pathlib.Path(command[0]).stem != 'glint_c_shared_module_host' or
+                      not pathlib.Path(command[1]).is_file()):
+                      sys.exit(f'Unexpected shared-module test command: {command}')
+                  paths.update(command)
                   continue
               expected_name = f'{name}_test'
               if not name.startswith('glint_c_') or pathlib.Path(command[0]).stem != expected_name:

@@ -8,6 +8,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_MSC_VER)
+typedef union gecs__MaxAlign {
+    long double floating;
+    long long integer;
+    void *pointer;
+    void (*function)(void);
+} gecs__MaxAlign;
+#else
+typedef max_align_t gecs__MaxAlign;
+#endif
+
 typedef struct gecs__TestCounts {
     size_t allocations;
     size_t frees;
@@ -54,8 +65,8 @@ TEST(allocator_test, {
     char *first = galloc_alloc(alloc, 17);
     char *second = galloc_alloc(alloc, 80);
     mewassert("Test expectation failed", first && second);
-    mewassert("Test expectation failed", (uintptr_t)first % _Alignof(max_align_t) == 0);
-    mewassert("Test expectation failed", (uintptr_t)second % _Alignof(max_align_t) == 0);
+    mewassert("Test expectation failed", (uintptr_t)first % _Alignof(gecs__MaxAlign) == 0);
+    mewassert("Test expectation failed", (uintptr_t)second % _Alignof(gecs__MaxAlign) == 0);
     mewassert("Test expectation failed", counts.allocations == 2);
     memcpy(first, "arena", 6);
     char *larger = galloc_realloc(alloc, first, 17, 200);

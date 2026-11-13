@@ -3,11 +3,24 @@
 #include <stdint.h>
 #include <string.h>
 
+#if defined(_MSC_VER)
+/* MSVC's C headers do not define C11 max_align_t. Its fundamental types are
+ * covered by this union; the backing allocator must provide their alignment. */
+typedef union garena__MaxAlign {
+    long double floating;
+    long long integer;
+    void *pointer;
+    void (*function)(void);
+} garena__MaxAlign;
+#else
+typedef max_align_t garena__MaxAlign;
+#endif
+
 struct garena__Block {
     garena__Block *next;
     size_t used;
     size_t capacity;
-    max_align_t data[];
+    garena__MaxAlign data[];
 };
 
 void garena_init(garena_Arena *arena, galloc_Allocator backing, size_t block_size) {
@@ -18,7 +31,7 @@ void garena_init(garena_Arena *arena, galloc_Allocator backing, size_t block_siz
 }
 
 static void *garena__allocate(galloc_Allocator backing, garena_Arena *arena, size_t size) {
-    size_t align = _Alignof(max_align_t);
+    size_t align = _Alignof(garena__MaxAlign);
     garena__Block *block = arena->current ? arena->current : arena->blocks;
     garena__Block *previous = NULL;
     if (size == 0) {
