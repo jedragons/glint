@@ -164,11 +164,14 @@ static void gdim2__test_test_reload(galloc_Allocator alloc) {
     mewassert("standalone atlas values", gdim2__test_run_script(alloc, script, values, "values"));
     gdim2_render(dim2);
     mewassert("Test expectation failed", gdim2__test_draws == 12 && gdim2__test_sources[10].x == 7 && gdim2__test_sources[11].x == 7);
-    /* Values survive an atlas reload that keeps their names. */
+    /* Values survive an atlas reload that keeps their names. The rewritten
+     * JSON deliberately differs in size from the previous version: same-size
+     * rewrites inside the filesystem's timestamp granularity are a documented
+     * watcher limitation (notably NTFS FILETIME ticks). */
     gdim2__test_write_asset(
         json,
-        "{\"frames\":{\"f\":{\"x\":3,\"w\":4,\"h\":5}},"
-        "\"animations\":{\"a\":[\"f\"]}}"
+        "{\"frames\": {\"f\":{\"x\":3,\"w\":4,\"h\":5}},"
+        " \"animations\":{\"a\":[\"f\"]}}"
     );
     gdim2_update(alloc, dim2, 0);
     const char *reuse = "Sprite.set(entity, snapshot); AnimatedSprite.set(entity, animated)";
