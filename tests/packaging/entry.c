@@ -1,7 +1,7 @@
-#include <glint/game.h>
+#include <glint/glint.h>
 
-ggame_Config ggame_configure(int argc, char **argv) {
+glint_Config glint_main(int argc, char** argv) {
     (void)argc;
     (void)argv;
-    return (ggame_Config){0};
+    return (glint_Config) {0};
 }

@@ -1,0 +1,122 @@
+#define GUNIT_DEFER_SIZE 3
+#include <glint/unit/unit.h>
+
+#include <string.h>
+
+// Registration must not depend on prior uses of the compiler counter.
+enum { unrelated_counter = __COUNTER__ };
+
+typedef struct gunit__TestCleanup {
+    const char* name;
+    int order[3];
+    int expected[3];
+    size_t count;
+    size_t expected_count;
+} gunit__TestCleanup;
+
+typedef struct gunit__TestRecord {
+    gunit__TestCleanup* cleanup;
+    int value;
+} gunit__TestRecord;
+
+// Only the fallthrough case needs arguments that outlive its body block.
+static gunit__TestCleanup gunit__test_fallthrough;
+static gunit__TestRecord gunit__test_fallthrough_record;
+
+static void gunit__test_record(void* user);
+static void gunit__test_verify(void* user);
+static void gunit__test_cleanup_failure(void* user);
+static bool gunit__test_assert_helper(void);
+
+GUNIT_TEST(failure, {
+    gunit__TestCleanup cleanup = {.name = "failure", .expected = {2, 1}, .expected_count = 2};
+    gunit__TestRecord first = {.cleanup = &cleanup, .value = 1};
+    gunit__TestRecord second = {.cleanup = &cleanup, .value = 2};
+    gunit_defer(gunit__test_verify, &cleanup);
+    gunit_defer(gunit__test_record, &first);
+    gunit_defer(gunit__test_record, &second);
+    gunit_assert("intentional failure", false);
+    gunit_return();
+})
+
+GUNIT_TEST(explicit_return, {
+    gunit__TestCleanup cleanup = {.name = "return", .expected = {3}, .expected_count = 1};
+    gunit__TestRecord record = {.cleanup = &cleanup, .value = 3};
+    gunit_defer(gunit__test_verify, &cleanup);
+    gunit_defer(gunit__test_record, &record);
+    gunit_return();
+    gunit_assert("early return stops the body", false);
+})
+
+GUNIT_TEST(fallthrough, {
+    gunit__test_fallthrough = (gunit__TestCleanup) {.name = "fallthrough", .expected = {4}, .expected_count = 1};
+    gunit__test_fallthrough_record = (gunit__TestRecord) {.cleanup = &gunit__test_fallthrough, .value = 4};
+    gunit_defer(gunit__test_verify, &gunit__test_fallthrough);
+    gunit_defer(gunit__test_record, &gunit__test_fallthrough_record);
+})
+
+GUNIT_TEST(overflow, {
+    gunit__TestCleanup cleanup = {.name = "overflow", .expected = {6, 5}, .expected_count = 2};
+    gunit__TestRecord first = {.cleanup = &cleanup, .value = 5};
+    gunit__TestRecord second = {.cleanup = &cleanup, .value = 6};
+    gunit_defer(gunit__test_verify, &cleanup);
+    gunit_defer(gunit__test_record, &first);
+    gunit_defer(gunit__test_record, &second);
+    gunit_defer(gunit__test_record, &first);
+    gunit_assert("overflow stops the body", false);
+    gunit_return();
+})
+
+GUNIT_TEST(cleanup_failure, {
+    gunit__TestCleanup cleanup = {.name = "cleanup-failure", .expected = {8}, .expected_count = 1};
+    gunit__TestRecord record = {.cleanup = &cleanup, .value = 8};
+    gunit_defer(gunit__test_verify, &cleanup);
+    gunit_defer(gunit__test_record, &record);
+    gunit_defer(gunit__test_cleanup_failure, NULL);
+    gunit_return();
+})
+
+GUNIT_TEST(helper_assertion, {
+    gunit__TestCleanup cleanup = {.name = "helper", .expected = {10}, .expected_count = 1};
+    gunit__TestRecord record = {.cleanup = &cleanup, .value = 10};
+    gunit_defer(gunit__test_verify, &cleanup);
+    gunit_defer(gunit__test_record, &record);
+    gunit_assert("helper failure propagates to its caller", gunit__test_assert_helper());
+    gunit_assert("caller failure stops the test", false);
+    gunit_return();
+})
+
+GUNIT_TEST(empty_return, {
+    gunit_assert("arguments reach cases", gunit_argc == 2 && gunit_argv[1][0] == 'x');
+    gunit_return();
+})
+
+gunit_main();
+
+static void gunit__test_record(void* user) {
+    gunit__TestRecord* record = user;
+    record->cleanup->order[record->cleanup->count] = record->value;
+    record->cleanup->count += 1;
+}
+
+static void gunit__test_verify(void* user) {
+    gunit__TestCleanup* cleanup = user;
+    if (!gunit_check("registered cleanup count matches", cleanup->count == cleanup->expected_count)) {
+        return;
+    }
+    for (size_t i = 0; i < cleanup->count; i++) {
+        if (!gunit_check("registered cleanup runs in reverse order", cleanup->order[i] == cleanup->expected[i])) {
+            return;
+        }
+    }
+    printf("verified %s cleanup\n", cleanup->name);
+}
+
+static void gunit__test_cleanup_failure(void* user) {
+    (void)user;
+    (void)gunit_check("intentional cleanup failure", false);
+}
+
+static bool gunit__test_assert_helper(void) {
+    return gunit_check("intentional helper failure", false);
+}

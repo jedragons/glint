@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-option(GLINT_BUILD_C_TESTS "Build tests for the C engine" OFF)
+option(GLINT_BUILD_TESTS "Build Glint tests" OFF)
 
 project(Glint VERSION 0.1.0 LANGUAGES C)
 
@@ -11,10 +11,14 @@ include(CMakePackageConfigHelpers)
 add_subdirectory(vendor/lua)
 add_subdirectory(vendor/raylib)
 
-if(GLINT_BUILD_C_TESTS)
+if(GLINT_BUILD_TESTS)
     enable_testing()
 endif()
 add_subdirectory(sources)
+add_subdirectory(examples)
+if(GLINT_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
 
 configure_package_config_file(cmake/GlintConfig.cmake.in
     "${CMAKE_CURRENT_BINARY_DIR}/GlintConfig.cmake"

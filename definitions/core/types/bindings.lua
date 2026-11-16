@@ -18,6 +18,12 @@ function Vec2.new(x, y) end
 ---@return Vec2
 function Vec2:scale(scale) end
 
+---@return number
+function Vec2:length() end
+
+---@return Vec2? Returns nil for a zero-length vector.
+function Vec2:normalize() end
+
 ---@class Rect
 ---@field x number
 ---@field y number

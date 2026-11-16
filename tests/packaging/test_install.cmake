@@ -1,5 +1,5 @@
 set(prefix "${GLINT_BINARY_DIR}/package-test-prefix")
-set(consumer "${GLINT_BINARY_DIR}/package-test-consumer")
+set(consumer "${GLINT_BINARY_DIR}/tests/package-test-consumer")
 include("${GLINT_SETTINGS}")
 
 function(run_checked)
