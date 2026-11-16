@@ -1,13 +1,345 @@
 # Glint C rewrite handoff
 
+## Commit checkpoint: 2026-11-16
+
+The user has completed the production source review. Manual test review remains
+open; keep the test checklist unchecked until that review is complete. The notes
+below retain earlier results and decisions; this checkpoint supersedes conflicting
+status reports.
+
+Tests now use focused cases with per-test contexts and reusable setup/cleanup
+helpers. `GUNIT_TEST` owns a stack-local defer array, configurable through
+`GUNIT_DEFER_SIZE`. Assertions use `gunit_return`, which runs deferred callbacks
+in reverse order and returns directly. Helpers propagate status explicitly.
+Test registration lives in `tests/CMakeLists.txt`; build logic lives in the
+`cmake/Glint*Tests.cmake` modules and related helpers.
+
+Latest verification on this Mac:
+
+- Native Debug and ASan/UBSan with stack lifetime checks: 36/36 tests passed.
+- Apple Clang 17 (`macos-clang`): 36/36 passed; warm suite time 0.40 seconds.
+- MinGW Windows x86_64 with Wine 11.21 Staging: 35/35 passed; warm suite time
+  3.31 seconds. Native macOS additionally runs the shared-module test.
+- Keep Wine's server alive with `wineserver -p`, then warm it with
+  `wine cmd /c exit` with output redirected before running CTest through `just`.
+  Restart the old server when upgrading Wine to avoid client/server version
+  mismatches.
+- Native GCC 16.2 cannot complete the current macOS dependency build. RGFW also
+  encountered Apple Blocks declarations in SDK headers. SDL3 compiled the window
+  backend, but miniaudio still failed in CoreAudio headers. No shared preset or
+  production source changes were made for these experiments; the local
+  `macos-gcc` cache currently selects SDL.
+- Real graphical/audio sessions and the current tree on Linux remain unverified.
+  Linux/TCC work is deferred until the user switches to Linux.
+
+## Latest build layout and macOS verification
+
+Worlds retain their backing allocator and own a temporary arena. Use `glint_allocator(world)` and `glint_temp_allocator(world)`; world-based APIs and module callbacks no longer take a separate allocator. The temporary arena resets at the end of a frame and is destroyed with the world.
+
+Frame delta is shared through `gtime_FrameTime` in the time API. Module load/start/update/render hooks return `bool` and receive an error buffer; the manager owns the diagnostic exposed by `gmod_Modules_error`. There is no frame-status context or scripting pause flag. Failed updates skip rendering, and frame temporary allocations still reset on failure. The module ABI is now version 5.
+
+The test directory is now `tests/`. The engine unity translation unit is `sources/glint/lib.c`. The platform compiles from `sources/glint/platform/lib.c` (Raylib) and `sources/glint/platform/native.c` (filesystem and watcher), and `sources/glint/main.c` is the optional entry-point translation unit. Tests use a mock native platform or a separately compiled web adapter; the platform integration test uses the production library. Debug ASan/UBSan and Release builds passed all 34 CTest tests on macOS. Both graphical examples build; graphics and audio tests use stubs, so real window and audio behavior was not exercised. The engine and examples also cross-build with MinGW for Windows. The frozen-world registration checks permit resolving existing types while rejecting new types. The notes below include older historical results where they differ from this update.
+
+## File review checklist
+
+VFS delegates native file operations to `platform/filesystem.h`. The watcher lives under `platform/watcher.h`; UTF-16, POSIX, and metadata handling stay inside platform code. Native filesystem code compiles separately to isolate Windows headers from Raylib.
+
+Math types now live under `sources/glint/math`. Platform audio, rendering, windowing, and logging each have matching headers and implementations; Glint owns log levels, filtering, callbacks, and severity helpers. Raylib forwards logs to Glint through a callback. Vec2 Lua operations call the math API directly and include `length`/`normalize`.
+
+Lua glue now lives in `bindings.c`/`bindings.h` under dim2, script, time, types, and window. Time, types, and window module declarations now live in `module.h`; script runtime and behavior execution remain in their own files. Binding symbols use distinct `g<module>_bindings_` prefixes. Lua logging is installed once during script runtime initialization, independently of window and world bindings.
+
+The second style pass changes only files left unchecked below. It separates
+validation from resource operations, names complex guards, fixes implicit pointer
+and numeric conditions, and moves private implementations after public functions.
+Test failures now have descriptive messages. `++` and `--` are allowed only in
+`for` loop updates; other updates use `+= 1` or `-= 1`.
+
+All 33 previously checked files remain byte-for-byte unchanged. The 109 scoped C
+files pass formatting and increment checks. Debug ASan/UBSan and Release each pass
+all 32 CTest tests on macOS. Native and Windows syntax checks pass; strict GCC
+warnings still flag the existing comparison in reviewed `core/arena.c`. The
+Windows capacity guard moved out of VFS and now uses checked allocation.
+
+Added or modified files compared with the merge base of `main` and `c-rewrite` (`3d3740b`), including untracked files. Deleted files are excluded. Existing checkmarks are preserved; check off each file after reviewing it.
+
+- **.github/**
+  - **workflows/**
+    - [x] `ci.yml`
+- **cmake/**
+  - [ ] `README.md`
+  - **toolchains/**
+    - [ ] `linux.cmake`
+    - [ ] `macos.cmake`
+    - [ ] `mingw.cmake`
+    - [ ] `msvc.cmake`
+  - [x] `GlintConfig.cmake.in`
+  - [x] `GlintExamples.cmake`
+  - [x] `GlintExampleTests.cmake`
+  - [x] `GlintPackageTest.cmake`
+  - [x] `GlintSharedModuleTest.cmake`
+  - [x] `GlintTests.cmake`
+- **definitions/**
+  - **core/**
+    - **lua/**
+      - [x] `entity.lua`
+      - [ ] `logging.lua`
+    - **time/**
+      - [x] `bindings.lua`
+    - **types/**
+      - [x] `bindings.lua`
+    - **windowing/**
+      - [x] `bindings.lua`
+  - **module-dim2/**
+    - **physics/**
+      - **bindings/**
+        - [x] `transform.lua`
+    - **rendering/**
+      - **bindings/**
+        - [x] `animated_sprite.lua`
+        - [x] `sprite.lua`
+  - [x] `README.md`
+- **examples/**
+  - **2d/**
+    - **atlas/**
+      - [x] `main.c`
+  - **basic/**
+    - [x] `main.c`
+  - [x] `CMakeLists.txt`
+- **sources/**
+  - **lua-defgen/**
+    - **src/**
+      - [x] `main.rs`
+    - [x] `Cargo.toml`
+  - **glint/**
+    - **core/**
+      - [x] `alloc.c`
+      - [x] `alloc.h`
+      - [x] `arena.c`
+      - [x] `arena.h`
+      - [x] `strings.c`
+      - [x] `strings.h`
+    - **ecs/**
+      - [x] `ecs.c`
+      - [x] `ecs.h`
+    - **json/**
+      - [x] `json.c`
+      - [x] `json.h`
+    - **math/**
+      - [x] `color.h`
+      - [x] `rect.h`
+      - [x] `vec2.h`
+    - **modules/**
+      - **assets/**
+        - [x] `cache.c`
+        - [x] `cache.h`
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `module.h`
+      - **audio/**
+        - [x] `audio.h`
+        - [x] `audio.c`
+        - [x] `dsp.c`
+        - [x] `dsp.h`
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `module.h`
+      - **core/**
+        - [x] `core_modules.c`
+        - [x] `core_modules.h`
+        - [x] `lib.c`
+      - **dim2/**
+        - [x] `asset.c`
+        - [x] `asset.h`
+        - [x] `atlas.c`
+        - [x] `atlas.h`
+        - [x] `bindings.c`
+        - [x] `bindings.h`
+        - [x] `dim2_internal.h`
+        - [x] `dim2.c`
+        - [x] `dim2.h`
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `module.h`
+      - **names/**
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `module.h`
+        - [x] `names.c`
+        - [x] `names.h`
+        - [x] `names_internal.h`
+      - **render/**
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `module.h`
+        - [x] `render.c`
+        - [x] `render.h`
+      - **script/**
+        - [x] `behaviors.c`
+        - [x] `behaviors.h`
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `script.c`
+        - [x] `script.h`
+        - [x] `bindings.c`
+        - [x] `bindings.h`
+        - [x] `script_internal.h`
+        - [x] `module.h`
+      - **texture/**
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `module.h`
+        - [x] `texture_asset.c`
+        - [x] `texture_asset.h`
+      - **time/**
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `time.c`
+        - [x] `time.h`
+        - [x] `bindings.c`
+        - [x] `bindings.h`
+        - [x] `module.h`
+      - **types/**
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `bindings.c`
+        - [x] `bindings.h`
+        - [x] `module.h`
+      - **vfs/**
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `module.h`
+      - **window/**
+        - [x] `lib.c`
+        - [x] `module.c`
+        - [x] `bindings.c`
+        - [x] `bindings.h`
+        - [x] `module.h`
+    - **platform/**
+      - [x] `audio.c`
+      - [x] `audio.h`
+      - [x] `filesystem.c`
+      - [x] `filesystem.h`
+      - [x] `lib.c`
+      - [x] `logging.c`
+      - [x] `logging.h`
+      - [x] `native.c`
+      - [x] `raylib.c`
+      - [x] `raylib_internal.h`
+      - [x] `rendering.c`
+      - [x] `rendering.h`
+      - [x] `watcher.c`
+      - [x] `watcher.h`
+      - [x] `win32.h`
+      - [x] `windowing.c`
+      - [x] `windowing.h`
+    - **runtime/**
+      - [x] `config.h`
+      - [x] `modules.c`
+      - [x] `modules.h`
+    - **unit/**
+      - [x] `unit.h`
+    - **vfs/**
+      - [x] `lib.c`
+      - [x] `vfs.c`
+      - [x] `vfs.h`
+    - [x] `config.h`
+    - [x] `game.c`
+    - [x] `glint.h`
+    - [x] `lib.c`
+    - [x] `main.c`
+  - [x] `CMakeLists.txt`
+- **tests/**
+  - **math/**
+    - [ ] `math_test.c`
+  - **core/**
+    - [ ] `allocator_test.c`
+    - [ ] `strings_test.c`
+  - **ecs/**
+    - [ ] `ecs_test.c`
+  - **examples/**
+    - **stubs/**
+      - **glint/**
+        - [ ] `glint.h`
+      - [ ] `emscripten.h`
+      - [ ] `raylib.h`
+    - [ ] `entry_test.c`
+  - **json/**
+    - [ ] `json_test.c`
+  - **modules/**
+    - **assets/**
+      - [ ] `cache_test.c`
+    - **audio/**
+      - [ ] `audio_test.c`
+    - **dim2/**
+      - [ ] `atlas_test.c`
+      - [ ] `dim2_test.c`
+    - **names/**
+      - [ ] `names_test.c`
+    - **render/**
+      - [ ] `render_test.c`
+    - **script/**
+      - [ ] `behaviors_test.c`
+      - [ ] `script_api_test.c`
+      - [ ] `script_test.c`
+    - **time/**
+      - [ ] `bindings_test.c`
+      - [ ] `time_test.c`
+    - **types/**
+      - [ ] `bindings_test.c`
+    - **window/**
+      - [ ] `bindings_test.c`
+  - **packaging/**
+    - [ ] `CMakeLists.txt`
+    - [ ] `entry.c`
+    - [ ] `main.c`
+    - [ ] `test_install.cmake`
+  - **platform/**
+    - **web_stub/**
+      - [ ] `emscripten.h`
+    - [ ] `filesystem_test.c`
+    - [ ] `audio_test.c`
+    - [ ] `logging_test.c`
+    - [ ] `mock.c`
+    - [ ] `rendering_test.c`
+    - [ ] `watcher_test.c`
+  - **runtime/**
+    - [ ] `modules_test.c`
+    - [ ] `shared_module.c`
+    - [ ] `shared_module_host.c`
+  - **unit/**
+    - [ ] `check_runner.cmake`
+    - [ ] `fatal_test.c`
+    - [ ] `runner_test.c`
+  - **vfs/**
+    - [ ] `vfs_test.c`
+  - [ ] `CMakeLists.txt`
+  - [ ] `game_test.c`
+  - [ ] `game_window_test.c`
+- **vendor/**
+  - **lua/**
+    - [ ] `CMakeLists.txt`
+  - **raylib/**
+    - [ ] `CMakeLists.txt`
+- [ ] `CMakeLists.txt`
+- [ ] `CMakePresets.json`
+- [ ] `.clangd`
+- [ ] `handoff.md`
+- [ ] `justfile`
+- [ ] `STYLEGUIDE.md`
+- [ ] `xmake.lua`
+
 ## Current state
 
-- Naming update: the engine C API now uses the subsystem-prefixed scheme below;
-  older symbol names in the historical notes are not current. Applications use
-  `ggame_configure`, shared modules export `gmod_descriptor`, and the rename
-  breaks the prior C source/ABI. Release and ASan each passed 30/30 tests,
-  including the shared-module fixture; Windows and WebAssembly cross-builds
-  succeeded. Lua-visible names and asset keys remain unchanged.
+- The engine compiles as one translation unit. Platform Raylib and native filesystem code compile separately, with an optional separate entry point. Headers and implementations are organized under `sources/glint`; tests mirror that structure under `tests/`.
+- Module imports define load and reverse-unload order. Frame stages are separate from dependency order, and modules report errors through hook results and manager diagnostics. The script module starts the initial behavior after module loading.
+- The platform owns the native and browser loop implementations. Game and entry-point code use the same completion callback on both platforms.
+- Game shutdown clears entities, freezes the world, and unloads modules in reverse dependency order. Lua finalizers and graphics-device lifetime still deserve review.
+- Debug ASan/UBSan and Release builds pass all 34 CTest tests on macOS. Graphics and browser behavior use test doubles; a real window, audio device and browser have not been exercised.
+- The broad allocator API migration, render-service decision, and asset reload contract changes from the review remain open. Type and time modules currently import the window module when their Lua/clock contexts are not supplied by the host.
+
+## Historical notes
+
+The notes below describe earlier stages of the rewrite; their paths, API names and verification results may no longer be current.
 
 - Branch: `c-rewrite`, based on commit `abc0fe0` (`Fix lua log bindings collapsing under mingw-g++`).
 - All rewrite work is **uncommitted**, including many untracked source and test files. Run `git status --short --branch` before changing anything; do not lose the untracked files.
@@ -35,27 +367,45 @@
 
 ## Build and test
 
-macOS C build, with tests:
+Native build, with tests (defaults to the host compiler):
 
 ```sh
-cmake -S . -B build-c -G Ninja -DGLINT_BUILD_C_TESTS=ON
-cmake --build build-c
-ctest --test-dir build-c --output-on-failure
+just configure
+just build
+just test
 ```
 
-`GLINT_C_ONLY` no longer exists; there is only the C build. The example executables `glint_c_basic` and `glint_c_atlas` are built without the former `GLINT_C_ONLY` guard. Never *run* those example binaries directly; they open real windows (see Notes).
+Presets use `build/<preset>/`, including `compile_commands.json`; clangd and
+`just tidy` explicitly use `build/default/`. Unsuffixed names and `-debug` use
+Debug; `-release` uses RelWithDebInfo (MinSizeRel for Emscripten). `debug` and
+`release` select the host compiler. See `cmake/README.md` for toolchain
+requirements. The default and Homebrew Clang presets each pass 34 tests on this
+Mac. Apple Clang builds and macOS Emscripten configures; macOS GCC configures but
+cannot build the current Raylib/Cocoa dependencies because of Apple Blocks syntax.
+Linux and native Windows presets have not been tested.
+The host `release` variant (RelWithDebInfo) builds and passes all 34 tests;
+both macOS Emscripten variants configure with their requested build types.
+Cross-target presets now use `windows-mingw-*` and `emscripten`, without a host
+prefix. Windows MinGW tests are enabled; x86_64 cross builds discover Wine through
+`CMAKE_CROSSCOMPILING_EMULATOR`, including the scripted unit-runner check.
+The default Wine runner disables its graphical crash debugger per invocation.
+Windows x86_64 passes all 33 tests through Wine on this Mac; native macOS still
+passes all 34. This exposed and fixed incomplete failing allocators in the native
+filesystem and VFS tests, plus test-order dependence in the asset-cache tests.
+
+`GLINT_C_ONLY` no longer exists; there is only the C build. The example executables `glint_basic` and `glint_atlas` are built without the former `GLINT_C_ONLY` guard. Never *run* those example binaries directly; they open real windows (see Notes).
 
 Windows cross-build used on this Mac:
 
 ```sh
 cmake -S . -B build-c-windows -G Ninja \
-  -DGLINT_BUILD_C_TESTS=ON \
+  -DGLINT_BUILD_TESTS=ON \
   -DCMAKE_SYSTEM_NAME=Windows \
   -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc
 cmake --build build-c-windows
 ```
 
-The Windows cross-build and 23 engine test executables passed under Wine during this session (the installed-package test was not part of that run). Pass plain drive paths (`Z:\Users\...\examples\basic`), because the `\\?\` prefix breaks the VFS's initial-script resolution. The windowed-game test uses full in-test raylib stubs (window, audio, textures) so it never opens a real window; keep it that way. **Never run the `glint_c_basic`/`glint_c_atlas` example binaries directly** — they open a real window and block until it closes; only build them (or run them deliberately with a display). The dim2 test uses raylib stubs and exercises the real atlas example Lua/assets. The basic game test is headless and runs the original basic Lua script.
+The Windows cross-build and 23 engine test executables passed under Wine during this session (the installed-package test was not part of that run). Pass plain drive paths (`Z:\Users\...\examples\basic`), because the `\\?\` prefix breaks the VFS's initial-script resolution. The windowed-game test uses full in-test raylib stubs (window, audio, textures) so it never opens a real window; keep it that way. **Never run the `glint_basic`/`glint_atlas` example binaries directly** — they open a real window and block until it closes; only build them (or run them deliberately with a display). The dim2 test uses raylib stubs and exercises the real atlas example Lua/assets. The basic game test is headless and runs the original basic Lua script.
 
 The updated packaging and tests passed 25/25 on macOS Release, including an installed-package consumer and a stubbed web loop. The Windows cross-build and 23 earlier engine tests passed under Wine; the new web test also passed under Wine separately. ASan/UBSan passed 24 engine tests but the packaging test failed because a single-config build without `CMAKE_BUILD_TYPE` passes an empty `--config`; this needs a fix and re-test. The Emscripten engine target cross-built, but its browser runtime has not been exercised. Re-run these after subsequent changes. A lesson from this session: any file added to the `glint` unity batch must not reference raylib. The unity object is pulled into almost every test, so a raylib reference drags `rcore.c.o` out of `libraylib.a` and collides with the stub tests' stand-ins. `sources/module-window/src/log.c` and `sources/module-render/src/render.c` are therefore listed in `SKIP_UNITY_BUILD_INCLUSION` alongside `game.c`, `c_dim2.c`, `window_lua.c`, and `c_audio.c`; keep new raylib-touching files out of the unity batch the same way.
 
@@ -85,16 +435,16 @@ A warm, engine-only clean rebuild of the former `glint_c_foundation` target thro
 1. **Migration and feature parity:** compare deleted C++ sources through Git history with the C implementation; examples passing headlessly do not prove full parity. The old ZIP mount was itself marked TODO, not an implemented backend. Window configuration, dim2 Lua bindings, standalone C textures, renderer, and C value types have been ported.
 2. **Assets:** a generic C asset cache and standalone texture API exist. Atlas and behavior loading retain their own loading and reload paths; behavior instances are per entity rather than shared by path.
 3. **2D/types compatibility:** Lua types are table-based and permit arbitrary fields; constructor validation and constant mutation semantics are not identical to sol2. The legacy Lua definition generator scans C++ sources and requires reassessment for the C rewrite.
-4. **Window/config parity:** implemented this session (`fps`, `resizable`, `vsync`, `log_level`, multiple mounts; `glint_log_set_level`). Window lifecycle and error handling are covered by the stubbed `glint_c_game_window_test` (flags, target FPS, draw begin/end/clear counts, close ordering, headless skips, extra mounts); a real graphical-session check on macOS and Windows is still outstanding.
+4. **Window/config parity:** implemented this session (`fps`, `resizable`, `vsync`, `log_level`, multiple mounts; `glint_log_set_level`). Window lifecycle and error handling are covered by the stubbed `glint_game_window_test` (flags, target FPS, draw begin/end/clear counts, close ordering, headless skips, extra mounts); a real graphical-session check on macOS and Windows is still outstanding.
 5. **Lifetimes and allocators:** audit all operations that can indirectly allocate, callbacks and allocator identity. The ECS destructor callback interface has no explicit allocator parameter, so owned values must carry the allocator they need. World teardown, Lua callbacks/finalizers, behavior unloading, module unload, VFS and raylib resource lifetime require careful integration tests. The frame arena is intentionally invalidated at frame end.
 6. **Testing and platforms:** run complete sanitizer and Release/NDEBUG builds after changes (last done for all 20 tests this session); test the real graphical examples and audio on macOS and Windows, and verify Windows runtime behavior natively if possible. Wine now covers the windowed-game, game, dim2, window-Lua, and atlas tests, but that is still not a native Windows check, and the windowed tests use raylib stubs rather than a real graphics session. Check CMake's unity build on both platforms when adding C files; file-local symbols can collide, raylib-stub tests require some files outside the unity batch, and any unity-batched file that references raylib breaks those stub links (see the note in Build and test).
-7. **Build and packaging:** the C++ engine and C++-only vendors are deleted, and the build is C-only. `.github/workflows/ci.yml` defines native Linux x86-64/ARM64, Windows x86-64/ARM64 and macOS ARM64 jobs; GitHub-hosted execution remains to be verified. `crates/lua-defgen` supports explicit C annotations but the rewritten sources do not contain them; the LuaLS definitions are currently maintained manually as described in `definitions/README.md`.
+7. **Build and packaging:** the C++ engine and C++-only vendors are deleted, and the build is C-only. `.github/workflows/ci.yml` defines native Linux x86-64/ARM64, Windows x86-64/ARM64 and macOS ARM64 jobs; GitHub-hosted execution remains to be verified. `sources/lua-defgen` supports explicit C annotations but the rewritten sources do not contain them; the LuaLS definitions are currently maintained manually as described in `definitions/README.md`.
 8. **Performance:** measure the final clean engine build after Lua/raylib are built; optimize toward ~100 ms without sacrificing separate testability or feature parity. Also evaluate watcher cost and ECS iteration before making performance claims.
 
 ## Notes for the next agent
 
 - `README.md` documents the C-only build. `handoff.md` is this handoff; the work and this file are uncommitted. Do not commit without the user's direction.
-- **Do not run the `glint_c_basic` or `glint_c_atlas` example binaries** (or any non-headless game) directly: they open a real window and block the session until someone closes it. Build-only, or use the stubbed/headless tests.
+- **Do not run the `glint_basic` or `glint_atlas` example binaries** (or any non-headless game) directly: they open a real window and block the session until someone closes it. Build-only, or use the stubbed/headless tests.
 - Scratch build dirs from this session (all safe to delete): `build-c-only-check{,-win,-notests}`, `build-c-feature{,-asan,-windows}`, `build-c-final`; older `build`, `build-c`, `build-windows`, `build-c-windows` predate it.
 - Re-run Wine on the Windows test binaries after the removal + feature changes (use plain `Z:\...` paths; `\\?\` breaks initial-script resolution), plus Release/ASan re-runs.
 - Do not interpret an unfinished old API as complete merely because it compiles. Several tests use stubs or only exercise the supplied examples.
