@@ -1,17 +1,21 @@
 set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
 
-configure:
-    cmake -S . -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DGLINT_BUILD_C_TESTS=ON
+# Each preset writes compile_commands.json to build/<preset>/.
+configure preset='default':
+    {{ if preset =~ '^emscripten(-(debug|release))?$' { 'emcmake cmake -G Ninja' } else { 'cmake' } }} --preset "{{ preset }}"
 
-build:
-    cmake --build build
+build preset='default':
+    cmake --build --preset "{{ preset }}"
+
+test preset='default':
+    ctest --preset "{{ preset }}"
 
 check: tidy luals-check cargo-check
 
 check-fix: tidy-fix luals-check cargo-check
 
 tidy *args: configure build
-    run-clang-tidy -quiet -p build 'sources/.*\.c$' 'sources/.*\.h$' {{ args }}
+    run-clang-tidy -quiet -p build/default 'sources/.*\.c$' 'sources/.*\.h$' {{ args }}
 
 tidy-fix: (tidy "-fix")
 
@@ -31,21 +35,21 @@ fmt:
 precommit: fmt check-fix
 
 run-example name: configure
-    cmake --build build --target {{ name }}
-    {{ "." / "build" / "sources" / name }}
+    cmake --build --preset default --target {{ name }}
+    {{ "." / "build" / "default" / "examples" / name }}
 
 [unix]
 test-example name: configure
-    cmake --build build --target {{ name }}
-    timeout 2 {{ "." / "build" / "sources" / name }}
+    cmake --build --preset default --target {{ name }}
+    timeout 2 {{ "." / "build" / "default" / "examples" / name }}
 
 [windows]
 test-example name: configure
-    cmake --build build --target {{ name }}
-    $proc = Start-Process -FilePath "{{ "." / "build" / "sources" / name }}.exe" -PassThru
+    cmake --build --preset default --target {{ name }}
+    $proc = Start-Process -FilePath "{{ "." / "build" / "default" / "examples" / name }}.exe" -PassThru
     Start-Sleep -Seconds 2
     Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
 
 test-all-examples:
-    -just test-example glint_c_basic
-    -just test-example glint_c_atlas
+    -just test-example glint_basic
+    -just test-example glint_atlas
