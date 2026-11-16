@@ -7,6 +7,7 @@ add_library(glint_test STATIC
     ${PROJECT_SOURCE_DIR}/sources/glint/platform/logging.c
     ${PROJECT_SOURCE_DIR}/sources/glint/platform/native.c
 )
+glint_require_c11(glint_test PUBLIC)
 
 target_include_directories(glint_test PUBLIC
     ${PROJECT_SOURCE_DIR}/sources
@@ -27,6 +28,7 @@ if(NOT EMSCRIPTEN)
         ${PROJECT_SOURCE_DIR}/sources/glint/platform/lib.c
         ${PROJECT_SOURCE_DIR}/sources/glint/platform/native.c
     )
+    glint_require_c11(glint_test_web PUBLIC)
 
     target_compile_definitions(glint_test_web PRIVATE
         GLINT_PLATFORM_EMSCRIPTEN=1
@@ -72,8 +74,10 @@ endfunction()
 
 function(glint_unit_runner_test name source fatal_source script)
     add_executable(glint_${name}_test ${source})
+    glint_require_c11(glint_${name}_test PRIVATE)
     target_include_directories(glint_${name}_test PRIVATE ${PROJECT_SOURCE_DIR}/sources)
     add_executable(glint_${name}_fatal_test ${fatal_source})
+    glint_require_c11(glint_${name}_fatal_test PRIVATE)
     target_include_directories(glint_${name}_fatal_test PRIVATE ${PROJECT_SOURCE_DIR}/sources)
     add_test(NAME glint_${name} COMMAND ${CMAKE_COMMAND}
         "-DRUNNER=$<TARGET_FILE:glint_${name}_test>"
@@ -114,7 +118,7 @@ function(glint_adapter_test name source)
         ${PROJECT_SOURCE_DIR}/sources/glint/platform/logging.c
     )
     target_include_directories(glint_platform_${name}_test PRIVATE ${PROJECT_SOURCE_DIR}/sources)
-    target_compile_features(glint_platform_${name}_test PRIVATE c_std_11)
+    glint_require_c11(glint_platform_${name}_test PRIVATE)
     target_link_libraries(glint_platform_${name}_test PRIVATE raylib)
     add_test(NAME glint_platform_${name} COMMAND glint_platform_${name}_test)
 endfunction()

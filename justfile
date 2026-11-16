@@ -7,7 +7,7 @@ configure preset='default':
 build preset='default':
     cmake --build --preset "{{ preset }}"
 
-test preset='default':
+test preset='default': (build preset)
     ctest --preset "{{ preset }}"
 
 check: tidy luals-check cargo-check

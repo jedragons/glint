@@ -22,6 +22,19 @@ Names describe targets; host OS conditions control availability. For web builds,
 `just configure emscripten` invokes `emcmake` on any supported desktop host.
 Native tests are disabled for Emscripten.
 
+Linux desktop builds enable both Wayland and X11 in the bundled GLFW for every
+compiler, including GCC, Clang and TCC, and for the host-default presets.
+Reconfiguring an existing build enables both backends as well. Builds require
+`wayland-scanner`, `pkg-config`, development files for `wayland-client`,
+`wayland-cursor`, `wayland-egl`, `xkbcommon`, and GLFW's X11 dependencies.
+GLFW selects the backend at runtime using the session environment. To select X11
+in a Wayland session with `DISPLAY` set, launch with `XDG_SESSION_TYPE=x11`.
+
+TCC builds select `-std=c11` explicitly because CMake has no TinyCC C11 feature
+table. Glint also supplies missing dependency flags (`-MD -MF`) so edits to
+included headers and unity build sources trigger recompilation. Tested with
+TCC 0.9.28rc (2026-01-17); older versions may lack required compiler features.
+
 `windows-mingw-x86_64` and `windows-mingw-arm64` work on Linux, macOS and Windows.
 Their tests are enabled. On Linux/macOS, the x86_64 toolchain discovers Wine and
 sets `CMAKE_CROSSCOMPILING_EMULATOR`, so `just test windows-mingw-x86_64` uses it.

@@ -7,9 +7,7 @@ function(glint_shared_module_test name module_source host_source)
         ${module_source}
     )
 
-    target_compile_features(${name} PRIVATE
-        c_std_11
-    )
+    glint_require_c11(${name} PRIVATE)
 
     target_include_directories(${name} PRIVATE
         ${PROJECT_SOURCE_DIR}/sources

@@ -5,7 +5,7 @@ add_library(glint STATIC
 )
 add_library(Glint::glint ALIAS glint)
 
-target_compile_features(glint PUBLIC c_std_11)
+glint_require_c11(glint PUBLIC)
 
 target_include_directories(glint PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"

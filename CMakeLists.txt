@@ -7,6 +7,12 @@ project(Glint VERSION 0.1.0 LANGUAGES C)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+include(cmake/GlintCompiler.cmake)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(GLFW_BUILD_WAYLAND ON CACHE BOOL "Build the bundled GLFW with Wayland support" FORCE)
+    set(GLFW_BUILD_X11 ON CACHE BOOL "Build the bundled GLFW with X11 support" FORCE)
+endif()
 
 add_subdirectory(vendor/lua)
 add_subdirectory(vendor/raylib)

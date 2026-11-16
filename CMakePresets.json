@@ -57,7 +57,7 @@
         {
             "name": "linux-tcc-x86_64",
             "inherits": "linux",
-            "description": "Linux x86_64 with tcc; cross builds require target libraries and a matching toolchain/sysroot. Cross compiler: x86_64-tcc; C11 feature detection depends on CMake/TCC versions.",
+            "description": "Linux x86_64 with tcc; cross builds require target libraries and a matching toolchain/sysroot. Cross compiler: x86_64-tcc.",
             "toolchainFile": "${sourceDir}/cmake/toolchains/linux.cmake",
             "cacheVariables": {
                 "GLINT_TOOLCHAIN_COMPILER": "tcc",
@@ -69,7 +69,7 @@
         {
             "name": "linux-tcc-arm64",
             "inherits": "linux",
-            "description": "Linux arm64 with tcc; cross builds require target libraries and a matching toolchain/sysroot. Cross compiler: arm64-tcc; C11 feature detection depends on CMake/TCC versions.",
+            "description": "Linux arm64 with tcc; cross builds require target libraries and a matching toolchain/sysroot. Cross compiler: arm64-tcc.",
             "toolchainFile": "${sourceDir}/cmake/toolchains/linux.cmake",
             "cacheVariables": {
                 "GLINT_TOOLCHAIN_COMPILER": "tcc",
