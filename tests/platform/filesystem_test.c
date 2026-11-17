@@ -24,24 +24,22 @@ static void* gfs__test_fail_alloc(void* user, size_t bytes);
 static void* gfs__test_fail_calloc(void* user, size_t count, size_t size);
 static bool gfs__test_stop_listing(const char* name, void* user);
 
-GUNIT_TEST(native_file_contents, {
+GUNIT_TEST(native_file_contents,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
     gunit_assert("read native file", gfs_read(ctx.alloc, "glint-filesystem-test.tmp", &ctx.data, &ctx.size) == GFS_OK);
     gunit_assert("native contents and size", ctx.size == 6 && memcmp(ctx.data, "native", ctx.size) == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(native_file_exists, {
+GUNIT_TEST(native_file_exists,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
     gunit_assert("native file exists", gfs_exists(ctx.alloc, "glint-filesystem-test.tmp"));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(read_allocation_failure, {
+GUNIT_TEST(read_allocation_failure,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -52,10 +50,9 @@ GUNIT_TEST(read_allocation_failure, {
         gfs_read(ctx.failing, "glint-filesystem-test.tmp", &data, &size) == GFS_OOM
     );
     gunit_assert("OOM clears outputs", data == NULL && size == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(read_invalid_arguments, {
+GUNIT_TEST(read_invalid_arguments,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -63,19 +60,17 @@ GUNIT_TEST(read_invalid_arguments, {
     size_t size = 99;
     gunit_assert("invalid path reports error", gfs_read(ctx.alloc, NULL, &data, &size) == GFS_ERROR);
     gunit_assert("invalid read clears outputs", data == NULL && size == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(directory_early_stop, {
+GUNIT_TEST(directory_early_stop,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
     gunit_assert("early stop succeeds", gfs_list(ctx.alloc, ".", gfs__test_stop_listing, &ctx.visits) == GFS_OK);
     gunit_assert("visitor stops after one entry", ctx.visits == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(directory_unavailable, {
+GUNIT_TEST(directory_unavailable,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -84,10 +79,9 @@ GUNIT_TEST(directory_unavailable, {
         gfs_list(ctx.alloc, "glint-filesystem-test.tmp/child", gfs__test_stop_listing, &ctx.visits) == GFS_UNAVAILABLE
     );
     gunit_assert("unavailable directory has no entries", ctx.visits == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(empty_file_owns_allocation, {
+GUNIT_TEST(empty_file_owns_allocation,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -97,10 +91,9 @@ GUNIT_TEST(empty_file_owns_allocation, {
         gfs_read(ctx.alloc, "glint-filesystem-test.tmp", &ctx.data, &ctx.size) == GFS_OK
     );
     gunit_assert("empty file still owns allocation", ctx.data != NULL && ctx.size == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(empty_file_allocation_failure, {
+GUNIT_TEST(empty_file_allocation_failure,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -109,10 +102,9 @@ GUNIT_TEST(empty_file_allocation_failure, {
     size_t size = 99;
     gunit_assert("empty read reports OOM", gfs_read(ctx.failing, "glint-filesystem-test.tmp", &data, &size) == GFS_OOM);
     gunit_assert("empty read OOM clears outputs", data == NULL && size == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(removed_file_is_unavailable, {
+GUNIT_TEST(removed_file_is_unavailable,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -125,12 +117,11 @@ GUNIT_TEST(removed_file_is_unavailable, {
         gfs_read(ctx.alloc, "glint-filesystem-test.tmp", &data, &size) == GFS_UNAVAILABLE
     );
     gunit_assert("unavailable file clears outputs", data == NULL && size == 0);
-    gunit_return();
-})
+)
 
 #if GLINT_PLATFORM_WINDOWS
 
-GUNIT_TEST(windows_read_buffer_allocation_failure, {
+GUNIT_TEST(windows_read_buffer_allocation_failure,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -143,10 +134,9 @@ GUNIT_TEST(windows_read_buffer_allocation_failure, {
         gfs_read(ctx.failing, "glint-filesystem-test.tmp", &data, &size) == GFS_OOM
     );
     gunit_assert("read OOM clears outputs", data == NULL && size == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(windows_list_pattern_allocation_failure, {
+GUNIT_TEST(windows_list_pattern_allocation_failure,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -157,10 +147,9 @@ GUNIT_TEST(windows_list_pattern_allocation_failure, {
         gfs_list(ctx.failing, ".", gfs__test_stop_listing, &ctx.visits) == GFS_OOM
     );
     gunit_assert("failed listing never calls visitor", ctx.visits == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(windows_list_path_conversion_allocation_failure, {
+GUNIT_TEST(windows_list_path_conversion_allocation_failure,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -171,10 +160,9 @@ GUNIT_TEST(windows_list_path_conversion_allocation_failure, {
         gfs_list(ctx.failing, ".", gfs__test_stop_listing, &ctx.visits) == GFS_OOM
     );
     gunit_assert("failed listing never calls visitor", ctx.visits == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(windows_list_entry_conversion_allocation_failure, {
+GUNIT_TEST(windows_list_entry_conversion_allocation_failure,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
@@ -185,16 +173,14 @@ GUNIT_TEST(windows_list_entry_conversion_allocation_failure, {
         gfs_list(ctx.failing, ".", gfs__test_stop_listing, &ctx.visits) == GFS_OOM
     );
     gunit_assert("failed listing never calls visitor", ctx.visits == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(windows_rejects_invalid_utf8, {
+GUNIT_TEST(windows_rejects_invalid_utf8,
     gfs__TestContext ctx = {0};
     gunit_defer(gfs__test_free, &ctx);
     gunit_assert("create filesystem fixture", gfs__test_create(&ctx));
     gunit_assert("invalid UTF-8 reports non-OOM error", gfs_read(ctx.alloc, "\xff", &ctx.data, &ctx.size) == GFS_ERROR);
-    gunit_return();
-})
+)
 
 #endif
 gunit_main();

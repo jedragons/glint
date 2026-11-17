@@ -22,6 +22,18 @@ Names describe targets; host OS conditions control availability. For web builds,
 `just configure emscripten` invokes `emcmake` on any supported desktop host.
 Native tests are disabled for Emscripten.
 
+The engine suites compile as five translation units in `glint_suites_test`, plus
+one shared module fixture on Unix. The runner contains the engine, native OS code,
+and four test batches. Each suite has scoped symbols and selects its own platform
+doubles, including the real native and web adapters. CTest runs each named suite in
+its own process, with its original arguments and setup. To debug one directly, run
+`build/<preset>/tests/glint_suites_test <suite> [args...]`, for example
+`build/default/tests/glint_suites_test allocator`. Native OS code comes first in
+the engine TU to preserve feature-macro ordering; raylib headers stay in the test
+batches to avoid Win32 name conflicts. Example entry tests use the real public
+types with scoped game stand-ins. The two runner self-test executables exercise
+the public unit header's standalone registration, case results, and cleanup.
+
 Linux desktop builds enable both Wayland and X11 in the bundled GLFW for every
 compiler, including GCC, Clang and TCC, and for the host-default presets.
 Reconfiguring an existing build enables both backends as well. Builds require

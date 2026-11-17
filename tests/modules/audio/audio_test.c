@@ -47,45 +47,41 @@ void gplatform_audio_close(void) {
     gaudio__test_device_ready = false;
 }
 
-GUNIT_TEST(device_uses_default_buffer, {
+GUNIT_TEST(device_uses_default_buffer,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
     gunit_assert("open owner", gaudio_Device_open(ctx.alloc, &ctx.owner, 0));
     gunit_assert("default buffer", gaudio__test_last_buffer_size == 2048);
     gunit_assert("device is ready", gaudio_Device_ready(&ctx.owner));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(device_uses_requested_buffer, {
+GUNIT_TEST(device_uses_requested_buffer,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
     gunit_assert("open owner", gaudio_Device_open(ctx.alloc, &ctx.owner, 1024));
     gunit_assert("requested buffer", gaudio__test_last_buffer_size == 1024);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(device_rejects_oversized_buffer, {
+GUNIT_TEST(device_rejects_oversized_buffer,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
     gunit_assert("reject impossible buffer size", !gaudio_Device_open(ctx.alloc, &ctx.owner, UINT32_MAX));
     gunit_assert("invalid size never initializes hardware", gaudio__test_device_init_calls == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(device_rejects_reopening_handle, {
+GUNIT_TEST(device_rejects_reopening_handle,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
     gunit_assert("open owner", gaudio_Device_open(ctx.alloc, &ctx.owner, 0));
     gunit_assert("opening the same handle twice fails", !gaudio_Device_open(ctx.alloc, &ctx.owner, 1024));
     gunit_assert("device initialized only once", gaudio__test_device_init_calls == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(borrowed_device_preserves_owner, {
+GUNIT_TEST(borrowed_device_preserves_owner,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
@@ -100,10 +96,9 @@ GUNIT_TEST(borrowed_device_preserves_owner, {
         "closing borrower preserves device",
         gaudio__test_device_ready && gaudio__test_device_close_calls == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(owner_close_is_idempotent, {
+GUNIT_TEST(owner_close_is_idempotent,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
@@ -112,20 +107,18 @@ GUNIT_TEST(owner_close_is_idempotent, {
     gunit_assert("owner closes device", !gaudio__test_device_ready && gaudio__test_device_close_calls == 1);
     gaudio_Device_close(&ctx.owner);
     gunit_assert("close is idempotent", gaudio__test_device_close_calls == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(device_initialization_failure, {
+GUNIT_TEST(device_initialization_failure,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
     gaudio__test_device_start_succeeds = false;
     gunit_assert("failed initialization is reported", !gaudio_Device_open(ctx.alloc, &ctx.owner, 256));
     gunit_assert("failed device is not marked open", !ctx.owner.open && !gaudio_Device_ready(&ctx.owner));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_import_is_idempotent, {
+GUNIT_TEST(module_import_is_idempotent,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
@@ -137,10 +130,9 @@ GUNIT_TEST(module_import_is_idempotent, {
     gaudio_Service* service = gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gaudio_Service));
     gunit_assert("device available through world", service != NULL && gaudio_Device_ready(&service->device));
     gunit_assert("initialized exactly once", gaudio__test_device_init_calls == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_unloads_dependents_before_audio, {
+GUNIT_TEST(module_unloads_dependents_before_audio,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
@@ -159,10 +151,9 @@ GUNIT_TEST(module_unloads_dependents_before_audio, {
     gunit_assert("dependent unloads while device ready", ctx.ready_at_unload);
     gunit_assert("service removed", gecs_context_get(ctx.world, type) == NULL);
     gunit_assert("device closed exactly once", gaudio__test_device_close_calls == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_load_propagates_device_failure, {
+GUNIT_TEST(module_load_propagates_device_failure,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
@@ -174,10 +165,9 @@ GUNIT_TEST(module_load_propagates_device_failure, {
         "failure leaves no service",
         gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gaudio_Service)) == NULL
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_borrows_host_service, {
+GUNIT_TEST(module_borrows_host_service,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
@@ -190,10 +180,9 @@ GUNIT_TEST(module_borrows_host_service, {
     ctx.modules = NULL;
     gunit_assert("host service remains", gecs_context_get(ctx.world, type) != NULL);
     gunit_assert("host device untouched", gaudio__test_device_init_calls == 0 && gaudio__test_device_close_calls == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(headless_policy, {
+GUNIT_TEST(headless_policy,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
@@ -216,10 +205,9 @@ GUNIT_TEST(headless_policy, {
     gunit_assert("unload", gmod_Modules_unload(ctx.alloc, ctx.modules));
     gunit_assert("service removed", gecs_context_get(ctx.world, type) == NULL);
     gunit_assert("unavailable device not closed", gaudio__test_device_close_calls == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(optional_device_policy, {
+GUNIT_TEST(optional_device_policy,
     gaudio__TestContext ctx = {0};
     gunit_defer(gaudio__test_free, &ctx);
     gaudio__test_create(&ctx);
@@ -242,10 +230,9 @@ GUNIT_TEST(optional_device_policy, {
     gunit_assert("unload", gmod_Modules_unload(ctx.alloc, ctx.modules));
     gunit_assert("service removed", gecs_context_get(ctx.world, type) == NULL);
     gunit_assert("unavailable device not closed", gaudio__test_device_close_calls == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(filter_complementary_outputs, {
+GUNIT_TEST(filter_complementary_outputs,
     gdsp_OnePoleFilter low = {.mode = GDSP_FILTER_LOW_PASS};
     gdsp_OnePoleFilter high = {.mode = GDSP_FILTER_HIGH_PASS};
     gunit_assert("set low cutoff", gdsp_OnePoleFilter_set_cutoff(&low, 1000.0f, 48000.0f));
@@ -256,19 +243,17 @@ GUNIT_TEST(filter_complementary_outputs, {
         float high_sample = gdsp_OnePoleFilter_process_sample(&high, samples[i]);
         gunit_assert("outputs sum to input", fabsf(low_sample + high_sample - samples[i]) < 0.00001f);
     }
-    gunit_return();
-})
+)
 
-GUNIT_TEST(filter_reset_clears_state, {
+GUNIT_TEST(filter_reset_clears_state,
     gdsp_OnePoleFilter filter = {0};
     gunit_assert("set cutoff", gdsp_OnePoleFilter_set_cutoff(&filter, 1000.0f, 48000.0f));
     gdsp_OnePoleFilter_process_sample(&filter, 1.0f);
     gdsp_OnePoleFilter_reset(&filter);
     gunit_assert("reset clears state", filter.integrator_state == 0.0f);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(filter_batch_matches_sequential, {
+GUNIT_TEST(filter_batch_matches_sequential,
     gdsp_OnePoleFilter filter = {0};
     gunit_assert("set cutoff", gdsp_OnePoleFilter_set_cutoff(&filter, 1000.0f, 48000.0f));
     gdsp_OnePoleFilter sequential = filter;
@@ -280,55 +265,48 @@ GUNIT_TEST(filter_batch_matches_sequential, {
             batch[i] == gdsp_OnePoleFilter_process_sample(&sequential, i == 0 ? 1.0f : 0.0f)
         );
     }
-    gunit_return();
-})
+)
 
-GUNIT_TEST(filter_rejects_invalid_parameters, {
+GUNIT_TEST(filter_rejects_invalid_parameters,
     gdsp_OnePoleFilter filter = {0};
     gunit_assert("set valid cutoff", gdsp_OnePoleFilter_set_cutoff(&filter, 1000.0f, 48000.0f));
     float gain = filter.integrator_gain;
     gunit_assert("invalid sample rate rejected", !gdsp_OnePoleFilter_set_cutoff(&filter, 1000.0f, 0.0f));
     gunit_assert("nonfinite cutoff rejected", !gdsp_OnePoleFilter_set_cutoff(&filter, NAN, 48000.0f));
     gunit_assert("invalid inputs preserve gain", filter.integrator_gain == gain);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(filter_clamps_cutoff, {
+GUNIT_TEST(filter_clamps_cutoff,
     gdsp_OnePoleFilter filter = {0};
     gunit_assert("negative cutoff clamps", gdsp_OnePoleFilter_set_cutoff(&filter, -10.0f, 48000.0f));
     gunit_assert("clamped gain is zero", filter.integrator_gain == 0.0f);
     gunit_assert("large cutoff clamps", gdsp_OnePoleFilter_set_cutoff(&filter, 100000.0f, 48000.0f));
     gunit_assert("clamped gain stays finite", isfinite(filter.integrator_gain) && filter.integrator_gain > 0.0f);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(low_pass_step_response_settles_to_dc, {
+GUNIT_TEST(low_pass_step_response_settles_to_dc,
     gdsp_OnePoleFilter filter = {.mode = GDSP_FILTER_LOW_PASS};
     gunit_assert("set cutoff", gdsp_OnePoleFilter_set_cutoff(&filter, 1000, 48000));
     float output = gdsp_OnePoleFilter_process_sample(&filter, 1);
     gunit_assert("first sample is filtered", output > 0 && output < 1);
     float first = output;
-    for (size_t i = 0; i < 1000; i++) {
-        output = gdsp_OnePoleFilter_process_sample(&filter, 1);
+    for (size_t i = 0; i < 1000; i++) { output = gdsp_OnePoleFilter_process_sample(&filter, 1);
     }
     gunit_assert("low pass responds over time", output > first);
     gunit_assert("low pass preserves DC", fabsf(output - 1) < 0.0001f);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(high_pass_step_response_rejects_dc, {
+GUNIT_TEST(high_pass_step_response_rejects_dc,
     gdsp_OnePoleFilter filter = {.mode = GDSP_FILTER_HIGH_PASS};
     gunit_assert("set cutoff", gdsp_OnePoleFilter_set_cutoff(&filter, 1000, 48000));
     float output = gdsp_OnePoleFilter_process_sample(&filter, 1);
     gunit_assert("step produces a filtered transient", output > 0 && output < 1);
     float first = output;
-    for (size_t i = 0; i < 1000; i++) {
-        output = gdsp_OnePoleFilter_process_sample(&filter, 1);
+    for (size_t i = 0; i < 1000; i++) { output = gdsp_OnePoleFilter_process_sample(&filter, 1);
     }
     gunit_assert("transient decays", fabsf(output) < first);
     gunit_assert("high pass rejects DC", fabsf(output) < 0.0001f);
-    gunit_return();
-})
+)
 
 gunit_main();
 

@@ -27,77 +27,70 @@ static bool glog__test_create(glog__TestContext* context, bool script);
 static void glog__test_free(void* user);
 static bool glog__test_lua(glog__TestContext* context, const char* source);
 
-GUNIT_TEST(logging_trace_helper, {
+GUNIT_TEST(logging_trace_helper,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
     glog_trace("trace %d", 1);
     gunit_assert("severity forwarded", context.sink.level == GLOG_TRACE && context.sink.count == 1);
     gunit_assert("message formatted", strcmp(context.sink.message, "trace 1") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_debug_helper, {
+GUNIT_TEST(logging_debug_helper,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
     glog_debug("debug %d", 2);
     gunit_assert("severity forwarded", context.sink.level == GLOG_DEBUG && context.sink.count == 1);
     gunit_assert("message formatted", strcmp(context.sink.message, "debug 2") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_info_helper, {
+GUNIT_TEST(logging_info_helper,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
     glog_info("info %s", "100%");
     gunit_assert("severity forwarded", context.sink.level == GLOG_INFO && context.sink.count == 1);
     gunit_assert("message formatted", strcmp(context.sink.message, "info 100%") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_warn_helper, {
+GUNIT_TEST(logging_warn_helper,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
     glog_warn("warning");
     gunit_assert("severity forwarded", context.sink.level == GLOG_WARN && context.sink.count == 1);
     gunit_assert("message formatted", strcmp(context.sink.message, "warning") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_error_helper, {
+GUNIT_TEST(logging_error_helper,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
     glog_error("error");
     gunit_assert("severity forwarded", context.sink.level == GLOG_ERROR && context.sink.count == 1);
     gunit_assert("message formatted", strcmp(context.sink.message, "error") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_default_preserves_threshold, {
+GUNIT_TEST(logging_default_preserves_threshold,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
     glog_set_level(GLOG_WARN);
     glog_set_level(GLOG_DEFAULT);
     gunit_assert("default preserves configured level", glog_get_level() == GLOG_WARN);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_filters_below_threshold, {
+GUNIT_TEST(logging_filters_below_threshold,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
     glog_set_level(GLOG_WARN);
     glog_info("filtered");
     gunit_assert("below threshold message filtered", context.sink.count == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_threshold_is_inclusive, {
+GUNIT_TEST(logging_threshold_is_inclusive,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
@@ -107,20 +100,18 @@ GUNIT_TEST(logging_threshold_is_inclusive, {
         "threshold message forwarded",
         context.sink.count == 1 && strcmp(context.sink.message, "accepted") == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_none_suppresses_fatal_severity, {
+GUNIT_TEST(logging_none_suppresses_fatal_severity,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
     glog_set_level(GLOG_NONE);
     glog_log(GLOG_FATAL, "filtered fatal severity");
     gunit_assert("none suppresses every severity", context.sink.count == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_callback_message_is_not_truncated, {
+GUNIT_TEST(logging_callback_message_is_not_truncated,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, false));
@@ -129,20 +120,18 @@ GUNIT_TEST(logging_callback_message_is_not_truncated, {
     message[sizeof(message) - 1] = '\0';
     glog_info("%s", message);
     gunit_assert("callback receives full message", strcmp(context.sink.message, message) == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_lua_growing_buffer_preserves_full_message, {
+GUNIT_TEST(logging_lua_growing_buffer_preserves_full_message,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, true));
     gunit_assert("run logger script", glog__test_lua(&context, "log_info(string.rep('x', 16384), '100%')"));
     gunit_assert("script logger reaches Glint", context.sink.count == 1 && context.sink.level == GLOG_INFO);
     gunit_assert("Lua buffering preserves full message", context.sink.length == 16389);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_world_and_window_registration_preserve_loggers, {
+GUNIT_TEST(logging_world_and_window_registration_preserve_loggers,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, true));
@@ -161,30 +150,27 @@ GUNIT_TEST(logging_world_and_window_registration_preserve_loggers, {
             "local current = {log_trace, log_debug, log_info, log_warn, log_error, log_fatal}; for i=1,6 do assert(current[i] == log_functions[i]) end"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_lua_trace, {
+GUNIT_TEST(logging_lua_trace,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, true));
     gunit_assert("run logger script", glog__test_lua(&context, "log_trace('trace')"));
     gunit_assert("Lua severity forwarded", context.sink.level == GLOG_TRACE && context.sink.count == 1);
     gunit_assert("Lua arguments converted", strcmp(context.sink.message, "trace") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_lua_debug, {
+GUNIT_TEST(logging_lua_debug,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, true));
     gunit_assert("run logger script", glog__test_lua(&context, "log_debug('debug')"));
     gunit_assert("Lua severity forwarded", context.sink.level == GLOG_DEBUG && context.sink.count == 1);
     gunit_assert("Lua arguments converted", strcmp(context.sink.message, "debug") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_lua_info, {
+GUNIT_TEST(logging_lua_info,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, true));
@@ -197,30 +183,27 @@ GUNIT_TEST(logging_lua_info, {
     );
     gunit_assert("Lua severity forwarded", context.sink.level == GLOG_INFO && context.sink.count == 1);
     gunit_assert("Lua arguments converted", strcmp(context.sink.message, "100% safe 42 true nil custom") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_lua_warn, {
+GUNIT_TEST(logging_lua_warn,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, true));
     gunit_assert("run logger script", glog__test_lua(&context, "log_warn('warning')"));
     gunit_assert("Lua severity forwarded", context.sink.level == GLOG_WARN && context.sink.count == 1);
     gunit_assert("Lua arguments converted", strcmp(context.sink.message, "warning") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_lua_error, {
+GUNIT_TEST(logging_lua_error,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, true));
     gunit_assert("run logger script", glog__test_lua(&context, "log_error('error')"));
     gunit_assert("Lua severity forwarded", context.sink.level == GLOG_ERROR && context.sink.count == 1);
     gunit_assert("Lua arguments converted", strcmp(context.sink.message, "error") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(logging_lua_fatal, {
+GUNIT_TEST(logging_lua_fatal,
     glog__TestContext context = {0};
     gunit_defer(glog__test_free, &context);
     gunit_assert("create logging fixture", glog__test_create(&context, true));
@@ -233,8 +216,7 @@ GUNIT_TEST(logging_lua_fatal, {
     );
     gunit_assert("Lua severity forwarded", context.sink.level == GLOG_ERROR && context.sink.count == 1);
     gunit_assert("Lua arguments converted", strcmp(context.sink.message, "fatal") == 0);
-    gunit_return();
-})
+)
 
 gunit_main();
 

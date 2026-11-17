@@ -68,7 +68,7 @@ static bool gecs__test_clear_create(gecs__TestContext* context);
 static bool gecs__test_bytes_create(gecs__TestContext* context);
 static bool gecs__test_staged_clear_create(gecs__TestContext* context);
 
-GUNIT_TEST(entity_handles_are_world_bound, {
+GUNIT_TEST(entity_handles_are_world_bound,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -93,10 +93,9 @@ GUNIT_TEST(entity_handles_are_world_bound, {
     );
     gecs_Entity found = gecs_Component_entity(context.world, context.position, 0);
     gunit_assert("iteration returns world-bound handle", found.world == context.world && found.id == first.id);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(destroyed_handles_remain_stale, {
+GUNIT_TEST(destroyed_handles_remain_stale,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -110,10 +109,9 @@ GUNIT_TEST(destroyed_handles_remain_stale, {
     gunit_assert("replacement has new generation", replacement.id != 0 && replacement.id != first.id);
     gunit_assert("other world entity remains alive", gecs_Entity_alive(other));
     gunit_assert("zero handle is invalid", !gecs_Entity_alive((gecs_Entity) {0}));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(component_registration_is_consistent, {
+GUNIT_TEST(component_registration_is_consistent,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -135,10 +133,9 @@ GUNIT_TEST(component_registration_is_consistent, {
         "find registered component",
         gecs_Component_find(context.world, "gecs__TestPosition") == context.position
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(component_removal_preserves_remaining_entities, {
+GUNIT_TEST(component_removal_preserves_remaining_entities,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -173,10 +170,9 @@ GUNIT_TEST(component_removal_preserves_remaining_entities, {
         );
         gunit_assert("each survivor is iterable", seen[i]);
     }
-    gunit_return();
-})
+)
 
-GUNIT_TEST(component_replacement_destroys_previous_value, {
+GUNIT_TEST(component_replacement_destroys_previous_value,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -187,10 +183,9 @@ GUNIT_TEST(component_replacement_destroys_previous_value, {
     gunit_assert("replacement destroys old value", gecs__test_destroyed == 1);
     gecs_Entity_destroy(entity);
     gunit_assert("entity destruction frees owned value", gecs__test_destroyed == 2);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(recycled_entities_reject_stale_component_writes, {
+GUNIT_TEST(recycled_entities_reject_stale_component_writes,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -205,10 +200,9 @@ GUNIT_TEST(recycled_entities_reject_stale_component_writes, {
         !gecs_Entity_alive(stale) && gecs_Component_set(stale, context.position, &position) == NULL
     );
     gunit_assert("replacement entity alive", gecs_Entity_alive(replacement));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(context_replacement_and_removal_destroy_values, {
+GUNIT_TEST(context_replacement_and_removal_destroy_values,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -220,10 +214,9 @@ GUNIT_TEST(context_replacement_and_removal_destroy_values, {
     gunit_assert("replacement destroys old context value", gecs__test_destroyed == 1);
     gunit_assert("remove context", gecs_context_remove(context.world, context.context));
     gunit_assert("removal destroys context value", gecs__test_destroyed == 2);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_free_destroys_components_and_contexts, {
+GUNIT_TEST(world_free_destroys_components_and_contexts,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -233,10 +226,9 @@ GUNIT_TEST(world_free_destroys_components_and_contexts, {
     gecs__test_context_free(&context);
     gunit_assert("world teardown destroys both values", gecs__test_destroyed == 2);
     gunit_assert("world teardown releases allocations", context.allocator.live == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_clear_destroys_values_and_invalidates_handles, {
+GUNIT_TEST(world_clear_destroys_values_and_invalidates_handles,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -251,10 +243,9 @@ GUNIT_TEST(world_clear_destroys_values_and_invalidates_handles, {
     gunit_assert("context empty", gecs_context_get(context.world, context.context) == NULL);
     gecs_World_clear(context.world);
     gunit_assert("clear is idempotent", gecs__test_clear_destroyed == 3);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_clear_retains_registration, {
+GUNIT_TEST(world_clear_retains_registration,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -273,10 +264,9 @@ GUNIT_TEST(world_clear_retains_registration, {
     );
     int32_t value = 42;
     gunit_assert("component works after clear", gecs_Component_set(replacement, context.position, &value) != NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(frozen_world_resolves_existing_types, {
+GUNIT_TEST(frozen_world_resolves_existing_types,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -300,10 +290,9 @@ GUNIT_TEST(frozen_world_resolves_existing_types, {
         "freeze rejects context registration",
         gecs_context_register(context.world, "Other", sizeof(int32_t), NULL) == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(frozen_world_rejects_new_entities_and_values, {
+GUNIT_TEST(frozen_world_rejects_new_entities_and_values,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -326,10 +315,9 @@ GUNIT_TEST(frozen_world_rejects_new_entities_and_values, {
     );
     const int32_t* existing = gecs_Component_get(context.entities[0], context.position);
     gunit_assert("existing value remains readable", existing != NULL && *existing == 42);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(frozen_world_can_be_cleared, {
+GUNIT_TEST(frozen_world_can_be_cleared,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -342,10 +330,9 @@ GUNIT_TEST(frozen_world_can_be_cleared, {
     );
     gecs__test_context_free(&context);
     gunit_assert("free does not destroy twice", gecs__test_clear_destroyed == 3);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(destroy_notifies_observer_and_releases_owned_value, {
+GUNIT_TEST(destroy_notifies_observer_and_releases_owned_value,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -365,10 +352,9 @@ GUNIT_TEST(destroy_notifies_observer_and_releases_owned_value, {
     );
     gunit_assert("entity no longer alive", !gecs_Entity_alive(entity));
     gunit_assert("owned component destroyed once", gecs__test_destroyed == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(unobserved_destroy_still_releases_owned_value, {
+GUNIT_TEST(unobserved_destroy_still_releases_owned_value,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -385,10 +371,9 @@ GUNIT_TEST(unobserved_destroy_still_releases_owned_value, {
     gunit_assert("removed observer is not notified", context.observer.calls == 0);
     gunit_assert("unobserved entity no longer alive", !gecs_Entity_alive(entity));
     gunit_assert("unobserved owned value destroyed once", gecs__test_destroyed == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_allocation_failure_releases_memory, {
+GUNIT_TEST(world_allocation_failure_releases_memory,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gecs__test_context_allocator(&context);
@@ -396,10 +381,9 @@ GUNIT_TEST(world_allocation_failure_releases_memory, {
     context.world = gecs_World_new(context.alloc);
     gunit_assert("world allocation failure reported", context.world == NULL);
     gunit_assert("failed world creation releases memory", context.allocator.live == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(component_registration_with_failing_allocator_is_consistent, {
+GUNIT_TEST(component_registration_with_failing_allocator_is_consistent,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -419,10 +403,9 @@ GUNIT_TEST(component_registration_with_failing_allocator_is_consistent, {
     if (registered != 0) {
         gunit_assert("retry resolves successfully registered type", retried == registered);
     }
-    gunit_return();
-})
+)
 
-GUNIT_TEST(component_self_assignment_preserves_contents, {
+GUNIT_TEST(component_self_assignment_preserves_contents,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -435,10 +418,9 @@ GUNIT_TEST(component_self_assignment_preserves_contents, {
         "self assignment preserves complete value",
         stored != NULL && memcmp(stored, &expected, sizeof(expected)) == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(component_replacement_with_failing_allocator_preserves_value, {
+GUNIT_TEST(component_replacement_with_failing_allocator_preserves_value,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -453,10 +435,9 @@ GUNIT_TEST(component_replacement_with_failing_allocator_preserves_value, {
         "replacement retains old value on failure or new value on success",
         stored != NULL && memcmp(stored, expected, sizeof(*expected)) == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(component_copy_accepts_complete_value_from_another_entity, {
+GUNIT_TEST(component_copy_accepts_complete_value_from_another_entity,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -477,10 +458,9 @@ GUNIT_TEST(component_copy_accepts_complete_value_from_another_entity, {
         "source entity value remains unchanged",
         source != NULL && memcmp(source, &expected, sizeof(expected)) == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(component_insertions_preserve_aliased_values_with_failing_allocator, {
+GUNIT_TEST(component_insertions_preserve_aliased_values_with_failing_allocator,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -519,10 +499,9 @@ GUNIT_TEST(component_insertions_preserve_aliased_values_with_failing_allocator, 
             stored != NULL && memcmp(stored, &expected, sizeof(expected)) == 0
         );
     }
-    gunit_return();
-})
+)
 
-GUNIT_TEST(context_self_assignment_preserves_contents, {
+GUNIT_TEST(context_self_assignment_preserves_contents,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -537,10 +516,9 @@ GUNIT_TEST(context_self_assignment_preserves_contents, {
         "context self assignment preserves complete value",
         stored != NULL && memcmp(stored, &expected, sizeof(expected)) == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(context_replacement_with_failing_allocator_preserves_value, {
+GUNIT_TEST(context_replacement_with_failing_allocator_preserves_value,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -559,10 +537,9 @@ GUNIT_TEST(context_replacement_with_failing_allocator_preserves_value, {
     );
     context.allocator.fail = false;
     gunit_assert("tracked context can be removed", gecs_context_remove(context.world, context.context));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(removing_dense_components_empties_pool, {
+GUNIT_TEST(removing_dense_components_empties_pool,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -574,10 +551,9 @@ GUNIT_TEST(removing_dense_components_empties_pool, {
     gunit_assert("empty pool has zero count", gecs_Component_count(context.world, context.bytes) == 0);
     gecs__test_context_free(&context);
     gunit_assert("tracked world releases all allocations", context.allocator.live == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_clear_entities_preserves_context_values, {
+GUNIT_TEST(world_clear_entities_preserves_context_values,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -595,10 +571,9 @@ GUNIT_TEST(world_clear_entities_preserves_context_values, {
     gunit_assert("ordinary context preserved", ordinary != NULL && *ordinary == 42);
     gunit_assert("first selected context preserved", first != NULL && *first == 11);
     gunit_assert("second selected context preserved", second != NULL && *second == 22);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_clear_except_preserves_selected_context, {
+GUNIT_TEST(world_clear_except_preserves_selected_context,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -615,10 +590,9 @@ GUNIT_TEST(world_clear_except_preserves_selected_context, {
     gunit_assert("other context removed", gecs_context_get(context.world, context.preserved_contexts[1]) == NULL);
     gecs_World_clear(context.world);
     gunit_assert("later clear destroys retained context once", gecs__test_clear_destroyed == 5);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_clear_except_many_preserves_selected_contexts, {
+GUNIT_TEST(world_clear_except_many_preserves_selected_contexts,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
@@ -636,8 +610,7 @@ GUNIT_TEST(world_clear_except_many_preserves_selected_contexts, {
     gunit_assert("unselected context removed", gecs_context_get(context.world, context.context) == NULL);
     gecs_World_clear(context.world);
     gunit_assert("later clear destroys retained contexts once", gecs__test_clear_destroyed == 5);
-    gunit_return();
-})
+)
 
 gunit_main();
 
@@ -690,8 +663,9 @@ static void* gecs__test_realloc(void* data, void* ptr, size_t old_size, size_t n
         return NULL;
     }
 
+    bool fresh = ptr == NULL;
     void* result = galloc_realloc(state->backing, ptr, old_size, new_size);
-    if (result != NULL && ptr == NULL) {
+    if (result != NULL && fresh) {
         state->live += 1;
     }
 

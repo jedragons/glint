@@ -16,7 +16,7 @@ typedef struct grender__TestContext {
     gvfs_Vfs* fs;
     grender_Texture texture;
     FILE* file;
-    bool fixture;
+    const char* fixture;
     size_t draw_count;
     size_t unload_count;
     size_t clear_count;
@@ -34,7 +34,7 @@ static grender__TestContext* grender__test_context;
 
 static void grender__test_create(grender__TestContext* ctx);
 static bool grender__test_load(grender__TestContext* ctx);
-static bool grender__test_mount(grender__TestContext* ctx);
+static bool grender__test_mount(grender__TestContext* ctx, const char* path);
 static void grender__test_free(void* user);
 
 static bool grender__test_color_bytes(
@@ -79,7 +79,7 @@ void gplatform_clear_background(gcolor_Color color) {
     grender__test_context->clear_count += 1;
 }
 
-GUNIT_TEST(texture_memory_metadata, {
+GUNIT_TEST(texture_memory_metadata,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
@@ -91,10 +91,9 @@ GUNIT_TEST(texture_memory_metadata, {
         ctx.load_count == 1 && ctx.loaded_size == sizeof("fake png bytes") - 1 && strcmp(ctx.loaded_type, ".png") == 0
     );
     gunit_assert("texture is valid", grender_Texture_valid(&ctx.texture));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(texture_unload_resets_handle, {
+GUNIT_TEST(texture_unload_resets_handle,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
@@ -103,10 +102,9 @@ GUNIT_TEST(texture_unload_resets_handle, {
     gunit_assert("texture released", ctx.unload_count == 1);
     gunit_assert("handle reset", ctx.texture.id == 0 && ctx.texture.width == 0);
     gunit_assert("unloaded texture invalid", !grender_Texture_valid(&ctx.texture));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(texture_unload_is_idempotent, {
+GUNIT_TEST(texture_unload_is_idempotent,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
@@ -114,64 +112,60 @@ GUNIT_TEST(texture_unload_is_idempotent, {
     grender_Texture_unload(&ctx.texture);
     grender_Texture_unload(&ctx.texture);
     gunit_assert("double unload is a no-op", ctx.unload_count == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(texture_preserves_platform_failure, {
+GUNIT_TEST(texture_preserves_platform_failure,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
     ctx.load_result = (gplatform_Texture) {0};
     ctx.texture = grender_Texture_load_memory(".png", "bytes", 5);
     gunit_assert("platform failure yields invalid texture", !grender_Texture_valid(&ctx.texture));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(texture_vfs_upload, {
+GUNIT_TEST(texture_vfs_upload,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
-    gunit_assert("mount fixture", grender__test_mount(&ctx));
+    gunit_assert("mount fixture", grender__test_mount(&ctx, "glint-render-test.png"));
     ctx.texture = grender_Texture_load_vfs(ctx.alloc, ctx.fs, "/glint-render-test.png");
     gunit_assert("VFS texture uploaded", ctx.texture.id == 7 && ctx.texture.width == 8 && ctx.texture.height == 4);
     gunit_assert(
         "VFS infers file type and reads bytes",
         ctx.loaded_size == sizeof("fake png bytes") - 1 && strcmp(ctx.loaded_type, ".png") == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(texture_vfs_rejects_missing, {
+GUNIT_TEST(texture_vfs_rejects_missing,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
-    gunit_assert("mount fixture", grender__test_mount(&ctx));
+    gunit_assert("mount fixture", grender__test_mount(&ctx, "glint-render-test.png"));
     ctx.texture = grender_Texture_load_vfs(ctx.alloc, ctx.fs, "/missing.png");
     gunit_assert("invalid path yields no texture", ctx.texture.id == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(texture_vfs_rejects_extensionless, {
+GUNIT_TEST(texture_vfs_rejects_extensionless,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
-    gunit_assert("mount fixture", grender__test_mount(&ctx));
+    gunit_assert("mount fixture", grender__test_mount(&ctx, "glint-render-test"));
     ctx.texture = grender_Texture_load_vfs(ctx.alloc, ctx.fs, "/glint-render-test");
     gunit_assert("invalid path yields no texture", ctx.texture.id == 0);
-    gunit_return();
-})
+    gunit_assert("extensionless file never reaches texture loader", ctx.load_count == 0);
+)
 
-GUNIT_TEST(texture_vfs_rejects_hidden, {
+GUNIT_TEST(texture_vfs_rejects_hidden,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
-    gunit_assert("mount fixture", grender__test_mount(&ctx));
+    gunit_assert("mount fixture", grender__test_mount(&ctx, ".png"));
     ctx.texture = grender_Texture_load_vfs(ctx.alloc, ctx.fs, "/.png");
     gunit_assert("invalid path yields no texture", ctx.texture.id == 0);
-    gunit_return();
-})
+    gunit_assert("hidden file never reaches texture loader", ctx.load_count == 0);
+)
 
-GUNIT_TEST(texture_simple_draw_defaults, {
+GUNIT_TEST(texture_simple_draw_defaults,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
@@ -200,10 +194,9 @@ GUNIT_TEST(texture_simple_draw_defaults, {
             120
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(texture_draw_forwards_params, {
+GUNIT_TEST(texture_draw_forwards_params,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
@@ -232,10 +225,9 @@ GUNIT_TEST(texture_draw_forwards_params, {
         "white tint forwarded",
         ctx.drawn_tint.r == 255 && ctx.drawn_tint.g == 255 && ctx.drawn_tint.b == 255 && ctx.drawn_tint.a == 255
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(clear_black, {
+GUNIT_TEST(clear_black,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
@@ -245,10 +237,9 @@ GUNIT_TEST(clear_black, {
         "clear color forwarded",
         ctx.cleared_color.r == 0 && ctx.cleared_color.g == 0 && ctx.cleared_color.b == 0 && ctx.cleared_color.a == 255
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(clear_transparent, {
+GUNIT_TEST(clear_transparent,
     grender__TestContext ctx = {0};
     gunit_defer(grender__test_free, &ctx);
     grender__test_create(&ctx);
@@ -258,8 +249,7 @@ GUNIT_TEST(clear_transparent, {
         "clear color forwarded",
         ctx.cleared_color.r == 0 && ctx.cleared_color.g == 0 && ctx.cleared_color.b == 0 && ctx.cleared_color.a == 0
     );
-    gunit_return();
-})
+)
 gunit_main();
 
 static bool grender__test_color_bytes(
@@ -284,12 +274,12 @@ static bool grender__test_load(grender__TestContext* ctx) {
     return gunit_check("upload fixture texture", grender_Texture_valid(&ctx->texture));
 }
 
-static bool grender__test_mount(grender__TestContext* ctx) {
-    ctx->file = fopen("glint-render-test.png", "wb");
+static bool grender__test_mount(grender__TestContext* ctx, const char* path) {
+    ctx->file = fopen(path, "wb");
     if (!gunit_check("open image fixture", ctx->file != NULL)) {
         return false;
     }
-    ctx->fixture = true;
+    ctx->fixture = path;
     const char bytes[] = "fake png bytes";
     if (!gunit_check("write image fixture", fwrite(bytes, 1, sizeof(bytes) - 1, ctx->file) == sizeof(bytes) - 1)) {
         return false;
@@ -315,8 +305,8 @@ static void grender__test_free(void* user) {
     if (ctx->file != NULL) {
         fclose(ctx->file);
     }
-    if (ctx->fixture) {
-        remove("glint-render-test.png");
+    if (ctx->fixture != NULL) {
+        remove(ctx->fixture);
     }
     grender__test_context = NULL;
 }

@@ -40,37 +40,35 @@ typedef struct gecs__AllocatorContext {
     bool arena_initialized;
 } gecs__AllocatorContext;
 
-static bool gecs__test_context_create(gecs__AllocatorContext* context);
-static void gecs__test_context_free(void* user);
+static bool galloc__test_context_create(gecs__AllocatorContext* context);
+static void galloc__test_context_free(void* user);
 
-GUNIT_TEST(arena_alignment, {
+GUNIT_TEST(arena_alignment,
     gecs__AllocatorContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
+    gunit_defer(galloc__test_context_free, &context);
+    gunit_assert("create test world", galloc__test_context_create(&context));
     void* first = galloc_alloc(context.alloc, 17);
     void* second = galloc_alloc(context.alloc, 80);
     gunit_assert("arena allocations succeed", first != NULL && second != NULL);
     gunit_assert("first block alignment", (uintptr_t)first % _Alignof(gecs__MaxAlign) == 0);
     gunit_assert("second block alignment", (uintptr_t)second % _Alignof(gecs__MaxAlign) == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(arena_reallocation_preserves_bytes, {
+GUNIT_TEST(arena_reallocation_preserves_bytes,
     gecs__AllocatorContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
+    gunit_defer(galloc__test_context_free, &context);
+    gunit_assert("create test world", galloc__test_context_create(&context));
     char* first = galloc_alloc(context.alloc, 17);
     gunit_assert("initial allocation succeeds", first != NULL);
     memcpy(first, "arena", 6);
     char* larger = galloc_realloc(context.alloc, first, 17, 200);
     gunit_assert("reallocation preserves bytes", larger != NULL && memcmp(larger, "arena", 6) == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(arena_reallocation_with_failing_backing_preserves_bytes, {
+GUNIT_TEST(arena_reallocation_with_failing_backing_preserves_bytes,
     gecs__AllocatorContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
+    gunit_defer(galloc__test_context_free, &context);
+    gunit_assert("create test world", galloc__test_context_create(&context));
     char* first = galloc_alloc(context.alloc, 17);
     gunit_assert("initial allocation succeeds", first != NULL);
     memcpy(first, "arena", 6);
@@ -83,22 +81,20 @@ GUNIT_TEST(arena_reallocation_with_failing_backing_preserves_bytes, {
         gunit_assert("reallocation can retry after backing recovers", larger != NULL);
     }
     gunit_assert("successful reallocation preserves bytes", memcmp(larger, "arena", 6) == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(arena_rejects_overflow, {
+GUNIT_TEST(arena_rejects_overflow,
     gecs__AllocatorContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
+    gunit_defer(galloc__test_context_free, &context);
+    gunit_assert("create test world", galloc__test_context_create(&context));
     gunit_assert("overflowing array rejected", galloc_calloc(context.alloc, SIZE_MAX, 2) == NULL);
     gunit_assert("overflowing allocation rejected", galloc_alloc(context.alloc, SIZE_MAX) == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(arena_reset_allows_reusable_allocations, {
+GUNIT_TEST(arena_reset_allows_reusable_allocations,
     gecs__AllocatorContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
+    gunit_defer(galloc__test_context_free, &context);
+    gunit_assert("create test world", galloc__test_context_create(&context));
     const size_t sizes[] = {17, 80, 200};
     for (size_t pass = 0; pass < 3; pass++) {
         for (size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++) {
@@ -109,15 +105,14 @@ GUNIT_TEST(arena_reset_allows_reusable_allocations, {
         }
         garena_reset(&context.arena);
     }
-    gecs__test_context_free(&context);
+    galloc__test_context_free(&context);
     gunit_assert("reusable arena releases all backing allocations", context.counts.frees == context.counts.allocations);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(arena_calloc_clears_reused_memory, {
+GUNIT_TEST(arena_calloc_clears_reused_memory,
     gecs__AllocatorContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
+    gunit_defer(galloc__test_context_free, &context);
+    gunit_assert("create test world", galloc__test_context_create(&context));
     void* data = galloc_alloc(context.alloc, 16);
     gunit_assert("initial allocation succeeds", data != NULL);
     memset(data, 42, 16);
@@ -127,24 +122,22 @@ GUNIT_TEST(arena_calloc_clears_reused_memory, {
     for (size_t i = 0; i < 16; i++) {
         gunit_assert("calloc clears every byte", zeroed[i] == 0);
     }
-    gunit_return();
-})
+)
 
-GUNIT_TEST(arena_destroy_releases_blocks, {
+GUNIT_TEST(arena_destroy_releases_blocks,
     gecs__AllocatorContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
+    gunit_defer(galloc__test_context_free, &context);
+    gunit_assert("create test world", galloc__test_context_create(&context));
     gunit_assert("first block allocated", galloc_alloc(context.alloc, 17) != NULL);
     gunit_assert("second block allocated", galloc_alloc(context.alloc, 80) != NULL);
-    gecs__test_context_free(&context);
+    galloc__test_context_free(&context);
     gunit_assert("destroy frees all backing blocks", context.counts.frees == context.counts.allocations);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_exposes_backing_allocator, {
+GUNIT_TEST(world_exposes_backing_allocator,
     gecs__AllocatorContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
+    gunit_defer(galloc__test_context_free, &context);
+    gunit_assert("create test world", galloc__test_context_create(&context));
     context.world = gecs_World_new(context.backing);
     gunit_assert("world created with custom allocator", context.world != NULL);
     galloc_Allocator alloc = glint_allocator(context.world);
@@ -153,15 +146,14 @@ GUNIT_TEST(world_exposes_backing_allocator, {
         alloc.data == context.backing.data && alloc.ftable == context.backing.ftable
     );
     gunit_assert("world allocates entities through its allocator", gecs_spawn(context.world).id != 0);
-    gecs__test_context_free(&context);
+    galloc__test_context_free(&context);
     gunit_assert("world releases backing allocations", context.counts.frees == context.counts.allocations);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_temporary_allocator_resets, {
+GUNIT_TEST(world_temporary_allocator_resets,
     gecs__AllocatorContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
+    gunit_defer(galloc__test_context_free, &context);
+    gunit_assert("create test world", galloc__test_context_create(&context));
     context.world = gecs_World_new(context.backing);
     gunit_assert("world created", context.world != NULL);
     galloc_Allocator temp = glint_temp_allocator(context.world);
@@ -173,10 +165,9 @@ GUNIT_TEST(world_temporary_allocator_resets, {
     gunit_assert("temporary allocator works after reset", next != NULL);
     memset(next, 42, 64);
     gunit_assert("new temporary storage is writable", next[0] == 42 && next[63] == 42);
-    gecs__test_context_free(&context);
+    galloc__test_context_free(&context);
     gunit_assert("world and arena release backing allocations", context.counts.frees == context.counts.allocations);
-    gunit_return();
-})
+)
 
 gunit_main();
 
@@ -227,7 +218,7 @@ static void* gecs__test_count_realloc(void* data, void* ptr, size_t old_size, si
     return result;
 }
 
-static bool gecs__test_context_create(gecs__AllocatorContext* context) {
+static bool galloc__test_context_create(gecs__AllocatorContext* context) {
     static const galloc_FunctionTable table = {
         gecs__test_count_alloc,
         gecs__test_count_free,
@@ -241,7 +232,7 @@ static bool gecs__test_context_create(gecs__AllocatorContext* context) {
     return true;
 }
 
-static void gecs__test_context_free(void* user) {
+static void galloc__test_context_free(void* user) {
     gecs__AllocatorContext* context = user;
     if (context->world != NULL) {
         gecs_World_free(context->world);

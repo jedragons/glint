@@ -92,17 +92,42 @@ static bool gmod__test_core(gmod__TestContext* context);
 static bool gmod__test_config_allocation_failure(gmod__TestContext* context, size_t failure, size_t* out_attempts);
 static bool gmod__test_binding(gmod__TestContext* context, gmod_Module module, const char* source);
 
-GUNIT_TEST(frame_update_order, {
+GUNIT_TEST(shutdown_before_load_clears_and_freezes_world,
+    gmod__TestContext context = {0};
+    gunit_defer(gmod__test_free, &context);
+    gunit_assert("create test context", gmod__test_create(&context, false));
+    gecs_Entity entity = gecs_spawn(context.world);
+    gunit_assert("entity spawned before loading", entity.id != 0);
+    gunit_assert("idle shutdown succeeds", gmod_Modules_shutdown(context.alloc, context.modules));
+    gunit_assert("shutdown destroys existing entities", !gecs_Entity_alive(entity));
+    gunit_assert("shutdown prevents new entities", gecs_spawn(context.world).id == 0);
+)
+
+GUNIT_TEST(shutdown_after_unload_clears_and_freezes_world,
+    gmod__TestContext context = {0};
+    gunit_defer(gmod__test_free, &context);
+    gunit_assert("create test context", gmod__test_create(&context, false));
+    gunit_assert("import modules", gmod__test_dependencies(&context));
+    gunit_assert("load modules", gmod_Modules_load(context.alloc, context.modules));
+    gecs_Entity entity = gecs_spawn(context.world);
+    gunit_assert("entity spawned while loaded", entity.id != 0);
+    gunit_assert("unload modules", gmod_Modules_unload(context.alloc, context.modules));
+    gunit_assert("ordinary unload preserves entities", gecs_Entity_alive(entity));
+    gunit_assert("shutdown after unload succeeds", gmod_Modules_shutdown(context.alloc, context.modules));
+    gunit_assert("shutdown destroys existing entities", !gecs_Entity_alive(entity));
+    gunit_assert("shutdown prevents new entities", gecs_spawn(context.world).id == 0);
+)
+
+GUNIT_TEST(frame_update_order,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
     gunit_assert("test helper succeeds", gmod__test_stages(&context));
     gunit_assert("update succeeds", gmod_Modules_update(context.alloc, context.modules));
     gunit_assert("stages run independently of import order", strcmp(context.data.events, "ENL") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(frame_failure_stops_dispatch_and_allows_later_scratch, {
+GUNIT_TEST(frame_failure_stops_dispatch_and_allows_later_scratch,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -117,10 +142,9 @@ GUNIT_TEST(frame_failure_stops_dispatch_and_allows_later_scratch, {
     gunit_assert("temporary allocation after failed frame succeeds", subsequent != NULL);
     memset(subsequent, 0x5a, 64);
     gunit_assert("temporary allocation after failed frame is writable", ((unsigned char*)subsequent)[63] == 0x5a);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(render_failure_reaches_caller, {
+GUNIT_TEST(render_failure_reaches_caller,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -128,10 +152,9 @@ GUNIT_TEST(render_failure_reaches_caller, {
     context.normal.fail = true;
     gunit_assert("render failures reach callers", !gmod_Modules_render(context.alloc, context.modules));
     gunit_assert("render error retained", strcmp(gmod_Modules_error(context.modules), "stage failed") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(frame_recovers_after_failed_hook, {
+GUNIT_TEST(frame_recovers_after_failed_hook,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -144,10 +167,9 @@ GUNIT_TEST(frame_recovers_after_failed_hook, {
     gunit_assert("next frame can recover", gmod_Modules_frame(context.alloc, context.modules));
     gunit_assert("successful frame clears error", gmod_Modules_error(context.modules)[0] == '\0');
     gunit_assert("render follows successful updates", strcmp(context.data.events, "ENLN") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(cyclic_import_is_rejected, {
+GUNIT_TEST(cyclic_import_is_rejected,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -158,10 +180,9 @@ GUNIT_TEST(cyclic_import_is_rejected, {
     left.dependency = &y;
     right.dependency = &x;
     gunit_assert("cyclic import rejected", !gmod_Modules_import(context.alloc, context.modules, x));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(repeated_import_loads_once, {
+GUNIT_TEST(repeated_import_loads_once,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -169,10 +190,9 @@ GUNIT_TEST(repeated_import_loads_once, {
     gunit_assert("repeated import succeeds", gmod_Modules_import(context.alloc, context.modules, context.b));
     gunit_assert("load succeeds", gmod_Modules_load(context.alloc, context.modules));
     gunit_assert("dependency and dependent load once", strcmp(context.data.events, "AB") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(failed_load_rolls_back_dependencies, {
+GUNIT_TEST(failed_load_rolls_back_dependencies,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -185,10 +205,9 @@ GUNIT_TEST(failed_load_rolls_back_dependencies, {
             && strstr(gmod_Modules_error(context.modules), "fail") != NULL
     );
     gunit_assert("failed load rolls back dependencies", strcmp(context.data.events, "ABa") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(failed_load_can_be_retried, {
+GUNIT_TEST(failed_load_can_be_retried,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -198,20 +217,18 @@ GUNIT_TEST(failed_load_can_be_retried, {
     context.data.fail_load = false;
     gunit_assert("retry load succeeds", gmod_Modules_load(context.alloc, context.modules));
     gunit_assert("retry reloads rolled back dependency", strcmp(context.data.events, "ABaAB") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(active_import_is_rejected, {
+GUNIT_TEST(active_import_is_rejected,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
     gunit_assert("test helper succeeds", gmod__test_dependencies(&context));
     gunit_assert("load succeeds", gmod_Modules_load(context.alloc, context.modules));
     gunit_assert("active import rejected", !gmod_Modules_import(context.alloc, context.modules, context.a));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(frame_dispatch_preserves_dependency_scratch, {
+GUNIT_TEST(frame_dispatch_preserves_dependency_scratch,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -223,10 +240,9 @@ GUNIT_TEST(frame_dispatch_preserves_dependency_scratch, {
     gunit_assert("second frame succeeds", gmod_Modules_frame(context.alloc, context.modules));
     gunit_assert("second frame renders fresh temporary contents", context.data.rendered_frames == 2);
     gunit_assert("both frames complete update and render", strcmp(context.data.events, "ABurur") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(unload_reverses_dependency_order, {
+GUNIT_TEST(unload_reverses_dependency_order,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -234,10 +250,9 @@ GUNIT_TEST(unload_reverses_dependency_order, {
     gunit_assert("load succeeds", gmod_Modules_load(context.alloc, context.modules));
     gunit_assert("unload succeeds", gmod_Modules_unload(context.alloc, context.modules));
     gunit_assert("unload reverses dependency order", strcmp(context.data.events, "ABba") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(unload_veto_preserves_all_loaded_modules, {
+GUNIT_TEST(unload_veto_preserves_all_loaded_modules,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -274,10 +289,9 @@ GUNIT_TEST(unload_veto_preserves_all_loaded_modules, {
     context.data.veto_unload = false;
     gunit_assert("unload can be retried", gmod_Modules_unload(context.alloc, context.modules));
     gunit_assert("retry unloads both modules in dependency order", strcmp(context.data.events, "ABABba") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(pending_load_failure_preserves_baseline, {
+GUNIT_TEST(pending_load_failure_preserves_baseline,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -311,10 +325,9 @@ GUNIT_TEST(pending_load_failure_preserves_baseline, {
         !gmod_Modules_load_pending(context.alloc, context.modules)
     );
     gunit_assert("baseline not reloaded or unloaded", strcmp(context.data.events, "AB") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(pending_load_can_be_retried, {
+GUNIT_TEST(pending_load_can_be_retried,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -347,10 +360,9 @@ GUNIT_TEST(pending_load_can_be_retried, {
     context.data.fail_load = false;
     gunit_assert("retry pending load succeeds", gmod_Modules_load_pending(context.alloc, context.modules));
     gunit_assert("only pending module retried", strcmp(context.data.events, "ABB") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(partial_unload_retains_named_module, {
+GUNIT_TEST(partial_unload_retains_named_module,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -383,10 +395,9 @@ GUNIT_TEST(partial_unload_retains_named_module, {
     gunit_assert("unretained module unloads first", strcmp(context.data.events, "ABb") == 0);
     gunit_assert("remaining unload succeeds", gmod_Modules_unload(context.alloc, context.modules));
     gunit_assert("retained module unloads last", strcmp(context.data.events, "ABba") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(start_failure_rolls_back_all_modules, {
+GUNIT_TEST(start_failure_rolls_back_all_modules,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -413,10 +424,9 @@ GUNIT_TEST(start_failure_rolls_back_all_modules, {
     gunit_assert("failed start reported", !gmod_Modules_load(context.alloc, context.modules));
     gunit_assert("failed start rolls back all loaded modules", strcmp(context.data.events, "ASba") == 0);
     gunit_assert("start error survives rollback", strcmp(gmod_Modules_error(context.modules), "start failed") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(start_failure_can_be_retried, {
+GUNIT_TEST(start_failure_can_be_retried,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -443,10 +453,9 @@ GUNIT_TEST(start_failure_can_be_retried, {
     gunit_assert("failed start reported", !gmod_Modules_load(context.alloc, context.modules));
     context.data.fail_load = false;
     gunit_assert("load can be retried", gmod_Modules_load(context.alloc, context.modules));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(failed_parent_import_retains_dependency_config, {
+GUNIT_TEST(failed_parent_import_retains_dependency_config,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -468,10 +477,9 @@ GUNIT_TEST(failed_parent_import_retains_dependency_config, {
     );
     fail = false;
     gunit_assert("parent import can be retried", gmod_Modules_import(context.alloc, context.modules, parent));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(configuration_copies_owned_strings, {
+GUNIT_TEST(configuration_copies_owned_strings,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -484,10 +492,9 @@ GUNIT_TEST(configuration_copies_owned_strings, {
         "config strings owned independently",
         strcmp(gmod_ModuleConfig_get(config, "text")->value.string, "hello") == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(configuration_preserves_value_types, {
+GUNIT_TEST(configuration_preserves_value_types,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -497,10 +504,9 @@ GUNIT_TEST(configuration_preserves_value_types, {
     gunit_assert("boolean", gmod_ModuleConfig_get(config, "bool")->value.boolean);
     gunit_assert("integer", gmod_ModuleConfig_get(config, "int")->value.integer == -42);
     gunit_assert("double", gmod_ModuleConfig_get(config, "double")->value.real == 1.5);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(configuration_missing_values_return_null, {
+GUNIT_TEST(configuration_missing_values_return_null,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -508,10 +514,9 @@ GUNIT_TEST(configuration_missing_values_return_null, {
     const gmod_ModuleConfig* config = gmod_Modules_config(context.modules, "configured");
     gunit_assert("missing key", gmod_ModuleConfig_get(config, "missing") == NULL);
     gunit_assert("missing module", gmod_Modules_config(context.modules, "missing") == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(configuration_duplicate_keys_rejected, {
+GUNIT_TEST(configuration_duplicate_keys_rejected,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -519,10 +524,9 @@ GUNIT_TEST(configuration_duplicate_keys_rejected, {
     gmod_Module module = {GMOD_INIT, .name = "invalid", .config = {.entries = values, .count = 2}};
     gunit_assert("duplicate keys rejected", !gmod_Modules_import(context.alloc, context.modules, module));
     gunit_assert("failed import not retained", gmod_Modules_config(context.modules, "invalid") == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(configuration_null_string_rejected, {
+GUNIT_TEST(configuration_null_string_rejected,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -530,10 +534,9 @@ GUNIT_TEST(configuration_null_string_rejected, {
     gmod_Module module = {GMOD_INIT, .name = "invalid", .config = {.entries = &value, .count = 1}};
     gunit_assert("null string rejected", !gmod_Modules_import(context.alloc, context.modules, module));
     gunit_assert("failed import not retained", gmod_Modules_config(context.modules, "invalid") == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(repeated_import_preserves_configuration, {
+GUNIT_TEST(repeated_import_preserves_configuration,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -543,30 +546,27 @@ GUNIT_TEST(repeated_import_preserves_configuration, {
     gunit_assert("idempotent import succeeds", gmod_Modules_import(context.alloc, context.modules, context.configured));
     const gmod_ModuleConfig* config = gmod_Modules_config(context.modules, "configured");
     gunit_assert("original config remains", gmod_ModuleConfig_get(config, "text") != NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_unknown_abi_rejected, {
+GUNIT_TEST(module_unknown_abi_rejected,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
     gmod_Module module = {GMOD_INIT, .name = "contract"};
     module.abi_version += 1;
     gunit_assert("invalid descriptor rejected", !gmod_Modules_import(context.alloc, context.modules, module));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_short_descriptor_rejected, {
+GUNIT_TEST(module_short_descriptor_rejected,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
     gmod_Module module = {GMOD_INIT, .name = "contract"};
     module.struct_size -= 1;
     gunit_assert("invalid descriptor rejected", !gmod_Modules_import(context.alloc, context.modules, module));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_descriptor_is_copied, {
+GUNIT_TEST(module_descriptor_is_copied,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -576,10 +576,9 @@ GUNIT_TEST(module_descriptor_is_copied, {
     module.user = NULL;
     gunit_assert("descriptor copied", gmod_Modules_load(context.alloc, context.modules));
     gunit_assert("original callback and user retained", strcmp(context.data.events, "A") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_reentrant_dispatch_is_ignored, {
+GUNIT_TEST(module_reentrant_dispatch_is_ignored,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -590,10 +589,9 @@ GUNIT_TEST(module_reentrant_dispatch_is_ignored, {
     gunit_assert("first frame", gmod_Modules_frame(context.alloc, context.modules));
     gunit_assert("second frame", gmod_Modules_frame(context.alloc, context.modules));
     gunit_assert("recursive dispatch and destruction ignored", data.calls == 2);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(configuration_allocation_denial_preserves_import_contract, {
+GUNIT_TEST(configuration_allocation_denial_preserves_import_contract,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, true));
@@ -611,26 +609,23 @@ GUNIT_TEST(configuration_allocation_denial_preserves_import_contract, {
         gmod__test_free(&context);
         gunit_assert("allocation denial leaves no owned resources after teardown", context.allocations.live == 0);
     }
-    gunit_return();
-})
+)
 
-GUNIT_TEST(types_module_imports_binding_dependencies, {
+GUNIT_TEST(types_module_imports_binding_dependencies,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
     gunit_assert("test helper succeeds", gmod__test_binding(&context, gtypes_module(), "assert(Vec2 ~= nil)"));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(time_module_imports_binding_dependencies, {
+GUNIT_TEST(time_module_imports_binding_dependencies,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
     gunit_assert("test helper succeeds", gmod__test_binding(&context, gtime_module(), "assert(Timer ~= nil)"));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(core_module_installs_services, {
+GUNIT_TEST(core_module_installs_services,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -645,10 +640,9 @@ GUNIT_TEST(core_module_installs_services, {
     );
     gunit_assert("time service installed", gecs_context_get(world, GECS_CONTEXT(world, gtime_Host)) != NULL);
     gunit_assert("script service installed", gecs_context_get(world, GECS_CONTEXT(world, gscript_Service)) != NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(core_module_installs_lua_bindings, {
+GUNIT_TEST(core_module_installs_lua_bindings,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -662,10 +656,9 @@ GUNIT_TEST(core_module_installs_lua_bindings, {
             "assert(window.dt == 0.25); local v = Vec2.new(2, 3); assert(v.x == 2 and v.y == 3); assert(Timer ~= nil)"
         ) == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(core_unload_removes_owned_contexts, {
+GUNIT_TEST(core_unload_removes_owned_contexts,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -681,10 +674,9 @@ GUNIT_TEST(core_unload_removes_owned_contexts, {
         gecs_context_get(world, lua) == NULL && gecs_context_get(world, time) == NULL
             && gecs_context_get(world, render) == NULL && gecs_context_get(world, script) == NULL
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(core_unload_preserves_host_services_and_names, {
+GUNIT_TEST(core_unload_preserves_host_services_and_names,
     gmod__TestContext context = {0};
     gunit_defer(gmod__test_free, &context);
     gunit_assert("create test context", gmod__test_create(&context, false));
@@ -697,8 +689,7 @@ GUNIT_TEST(core_unload_preserves_host_services_and_names, {
     gunit_assert("unload core", gmod_Modules_unload(context.alloc, context.modules));
     gunit_assert("host clock survives", gecs_context_get(context.world, context.host_type) != NULL);
     gunit_assert("entity names survive", gname_find(context.world, "hero").id == entity.id);
-    gunit_return();
-})
+)
 
 gunit_main();
 
@@ -1102,8 +1093,9 @@ static void* gmod__test_config_realloc(void* data, void* ptr, size_t old_size, s
         return NULL;
     }
 
+    bool fresh = ptr == NULL;
     void* result = galloc_realloc(state->backing, ptr, old_size, size);
-    if (result != NULL && ptr == NULL) {
+    if (result != NULL && fresh) {
         state->live += 1;
     }
 

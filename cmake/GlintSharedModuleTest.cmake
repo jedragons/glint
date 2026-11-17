@@ -20,13 +20,7 @@ function(glint_shared_module_test name module_source host_source)
         )
     endif()
 
-    add_executable(${name}_host ${host_source})
-
-    set_target_properties(${name}_host PROPERTIES ENABLE_EXPORTS ON)
-
-    target_link_libraries(${name}_host PRIVATE glint ${CMAKE_DL_LIBS})
-
-    target_compile_options(${name}_host PRIVATE -UNDEBUG)
-
-    add_test(NAME ${name} COMMAND ${name}_host $<TARGET_FILE:${name}>)
+    glint_test_suite(shared_module ${host_source})
+    set_target_properties(glint_suites_test PROPERTIES ENABLE_EXPORTS ON)
+    add_test(NAME ${name} COMMAND glint_suites_test shared_module $<TARGET_FILE:${name}>)
 endfunction()

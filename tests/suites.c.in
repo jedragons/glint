@@ -1,0 +1,12 @@
+#include "unit/suite.h"
+@GLINT_TEST_GROUP_INCLUDES@
+
+#include <raylib.h>
+
+#include <string.h>
+
+@GLINT_TEST_SUITE_SOURCES@
+#undef gunit_first
+#undef gunit_register
+
+@GLINT_TEST_MAIN@

@@ -1,3 +1,6 @@
+if(NOT IS_ABSOLUTE "${GLINT_BINARY_DIR}")
+    message(FATAL_ERROR "GLINT_BINARY_DIR must be an absolute path")
+endif()
 set(prefix "${GLINT_BINARY_DIR}/package-test-prefix")
 set(consumer "${GLINT_BINARY_DIR}/tests/package-test-consumer")
 include("${GLINT_SETTINGS}")
@@ -13,6 +16,8 @@ set(config_option)
 if(NOT "${GLINT_CONFIG}" STREQUAL "")
     list(APPEND config_option --config "${GLINT_CONFIG}")
 endif()
+# A previous install or consumer cache can hide missing package files.
+file(REMOVE_RECURSE "${prefix}" "${consumer}")
 run_checked("${CMAKE_COMMAND}" --install "${GLINT_BINARY_DIR}"
     --prefix "${prefix}" ${config_option})
 set(generator_options -G "${GLINT_GENERATOR}")

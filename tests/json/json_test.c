@@ -31,7 +31,7 @@ static const char* gjson__test_document =
     "\"animations\":{\"walk\":[\"frame0\",\"frame1\"]},"
     "\"str\":\"\\uD83D\\uDE03\\u0000a\\n\",\"flag\":true,\"none\":null,\"n\":-1.25e+2}";
 
-GUNIT_TEST(json_object_members, {
+GUNIT_TEST(json_object_members,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
@@ -40,10 +40,9 @@ GUNIT_TEST(json_object_members, {
         "object has expected members",
         context.value->type == GJSON_OBJECT && context.value->as.children.length == 6
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_nested_number, {
+GUNIT_TEST(json_nested_number,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
@@ -51,10 +50,9 @@ GUNIT_TEST(json_nested_number, {
     const gjson_Value* frames = gjson_Value_get(context.value, "frames");
     const gjson_Value* frame = gjson_Value_get(frames, "frame0");
     gunit_assert("read nested number", gjson_Value_get(frame, "w")->as.number == 16);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_array_indexing, {
+GUNIT_TEST(json_array_indexing,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
@@ -66,10 +64,9 @@ GUNIT_TEST(json_array_indexing, {
     );
     gunit_assert("read array string", strcmp(gjson_Value_at(array, 1)->as.string.data, "frame1") == 0);
     gunit_assert("out of range returns NULL", gjson_Value_at(array, 2) == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_unicode_and_embedded_nul_string, {
+GUNIT_TEST(json_unicode_and_embedded_nul_string,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
@@ -79,65 +76,58 @@ GUNIT_TEST(json_unicode_and_embedded_nul_string, {
         "Unicode and embedded NUL decoded",
         value->as.string.length == 7 && memcmp(value->as.string.data, "\xf0\x9f\x98\x83\0a\n", 7) == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_numeric_exponent, {
+GUNIT_TEST(json_numeric_exponent,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, "-1.25e+2"));
     gunit_assert("numeric exponent parsed", context.value->type == GJSON_NUMBER && context.value->as.number == -125);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_true_literal, {
+GUNIT_TEST(json_true_literal,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, "true"));
     gunit_assert("true literal parsed", context.value->type == GJSON_BOOL && context.value->as.boolean);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_false_literal, {
+GUNIT_TEST(json_false_literal,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, "false"));
     gunit_assert("false literal parsed", context.value->type == GJSON_BOOL && !context.value->as.boolean);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_null_literal, {
+GUNIT_TEST(json_null_literal,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, "null"));
     gunit_assert("null literal parsed", context.value->type == GJSON_NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_embedded_nul_object_key, {
+GUNIT_TEST(json_embedded_nul_object_key,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, "{\"x\\u0000y\":1,\"\":false}"));
     gunit_assert("length-aware key lookup", gjson_Value_get_n(context.value, "x\0y", 3)->as.number == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_empty_object_key, {
+GUNIT_TEST(json_empty_object_key,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, "{\"x\\u0000y\":1,\"\":false}"));
     const gjson_Value* value = gjson_Value_get(context.value, "");
     gunit_assert("empty key lookup", value != NULL && value->type == GJSON_BOOL && !value->as.boolean);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_tree_free_releases_allocations, {
+GUNIT_TEST(json_tree_free_releases_allocations,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
@@ -146,10 +136,9 @@ GUNIT_TEST(json_tree_free_releases_allocations, {
     gjson_Value_free(context.alloc, context.value);
     context.value = NULL;
     gunit_assert("parsed tree releases memory", context.tracking.live == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_allocation_failures_release_partial_tree, {
+GUNIT_TEST(json_allocation_failures_release_partial_tree,
     gjson__TestContext context = {0};
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
@@ -165,178 +154,41 @@ GUNIT_TEST(json_allocation_failures_release_partial_tree, {
         gunit_assert("allocation failure reported", context.value == NULL);
         gunit_assert("failed parse releases partial tree", context.tracking.live == 0);
     }
-    gunit_return();
-})
+)
 
-GUNIT_TEST(json_rejects_empty_document, {
+GUNIT_TEST(json_rejects_malformed_inputs,
+    static const struct {
+        const char* source;
+        const char* message;
+    } cases[] = {
+        {"", "reject empty document"},
+        {"[1,]", "reject array trailing comma"},
+        {"{\"x\":1,}", "reject object trailing comma"},
+        {"{x:1}", "reject unquoted key"},
+        {"01", "reject leading zero"},
+        {"-.1", "reject missing integer part"},
+        {"1.", "reject missing fraction digits"},
+        {"1e+", "reject missing exponent digits"},
+        {"true false", "reject multiple roots"},
+        {"tru", "reject incomplete true"},
+        {"nul", "reject incomplete null"},
+        {"\"\\ud800\"", "reject unpaired high surrogate"},
+        {"\"\\udc00\"", "reject unpaired low surrogate"},
+        {"\"\\ud800\\u1234\"", "reject invalid surrogate pair"},
+        {"\"\\x00\"", "reject unsupported escape"},
+        {"\"\001\"", "reject unescaped control character"},
+        {"\"\xc0\x80\"", "reject overlong UTF-8"}
+    };
     gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
-    const char* source = "";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_array_trailing_comma, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "[1,]";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_object_trailing_comma, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "{\"x\":1,}";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_unquoted_key, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "{x:1}";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_leading_zero, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "01";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_missing_integer_part, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "-.1";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_missing_fraction_digits, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "1.";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_missing_exponent_digits, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "1e+";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_multiple_roots, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "true false";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_incomplete_true, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "tru";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_incomplete_null, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "nul";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_unpaired_high_surrogate, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "\"\\ud800\"";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_unpaired_low_surrogate, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "\"\\udc00\"";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_invalid_surrogate_pair, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "\"\\ud800\\u1234\"";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_unsupported_escape, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "\"\\x00\"";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_unescaped_control, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "\"\001\"";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
-
-GUNIT_TEST(json_rejects_overlong_utf8, {
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    const char* source = "\"\xc0\x80\"";
-    context.value = gjson_parse(context.alloc, source, strlen(source), NULL);
-    gunit_assert("invalid JSON rejected", context.value == NULL);
-    gunit_return();
-})
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        const char* source = cases[i].source;
+        gjson_Value* value = gjson_parse(context.alloc, source, strlen(source), NULL);
+        if (!gunit_check(cases[i].message, value == NULL)) {
+            gjson_Value_free(context.alloc, value);
+        }
+    }
+)
 
 gunit_main();
 

@@ -32,7 +32,7 @@ static const char* gdim2_atlas__test_document =
     "{\"frames\":{\"f0\":{\"x\":16,\"w\":16,\"h\":16,\"duration\":150},"
     "\"f1\":{\"duration\":100}},\"animations\":{\"walk\":[\"f0\",\"f1\"]}}";
 
-GUNIT_TEST(atlas_frame_metadata, {
+GUNIT_TEST(atlas_frame_metadata,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -42,18 +42,16 @@ GUNIT_TEST(atlas_frame_metadata, {
         "frame coordinates and duration",
         frame != NULL && frame->x == 16 && frame->width == 16 && frame->duration > 0.149f && frame->duration < 0.151f
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_missing_frame, {
+GUNIT_TEST(atlas_missing_frame,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
     gunit_assert("missing frame returns NULL", gdim2_atlas_frame(&ctx.atlas, "missing") == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_animation_sequence, {
+GUNIT_TEST(atlas_animation_sequence,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -64,10 +62,9 @@ GUNIT_TEST(atlas_animation_sequence, {
         "player starts at first frame",
         gdim2_atlas_AnimationPlayer_frame(&player) == gdim2_atlas_frame(&ctx.atlas, "f0")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_animation_advances, {
+GUNIT_TEST(atlas_animation_advances,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -78,10 +75,9 @@ GUNIT_TEST(atlas_animation_advances, {
         "player advances to next frame",
         gdim2_atlas_AnimationPlayer_frame(&player) == gdim2_atlas_frame(&ctx.atlas, "f1")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_animation_wraps, {
+GUNIT_TEST(atlas_animation_wraps,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -93,10 +89,9 @@ GUNIT_TEST(atlas_animation_wraps, {
         "player wraps to first frame",
         gdim2_atlas_AnimationPlayer_frame(&player) == gdim2_atlas_frame(&ctx.atlas, "f0")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_empty_document, {
+GUNIT_TEST(atlas_empty_document,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -106,10 +101,9 @@ GUNIT_TEST(atlas_empty_document, {
         "incomplete player has no frame",
         gdim2_atlas_AnimationPlayer_frame(&(gdim2_atlas_AnimationPlayer) {.atlas = &ctx.atlas}) == NULL
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_rejects_unknown_frame, {
+GUNIT_TEST(atlas_rejects_unknown_frame,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -119,10 +113,9 @@ GUNIT_TEST(atlas_rejects_unknown_frame, {
         !gdim2_atlas__test_parse(ctx.alloc, "{\"animations\":{\"bad\":[\"missing\"]}}", &ctx.atlas)
     );
     gunit_assert("failed parse clears output", ctx.atlas.frames == NULL && ctx.atlas.animations == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_rejects_negative_coordinate, {
+GUNIT_TEST(atlas_rejects_negative_coordinate,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -132,10 +125,9 @@ GUNIT_TEST(atlas_rejects_negative_coordinate, {
         !gdim2_atlas__test_parse(ctx.alloc, "{\"frames\":{\"bad\":{\"x\":-1}}}", &ctx.atlas)
     );
     gunit_assert("failed parse clears output", ctx.atlas.frames == NULL && ctx.atlas.animations == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_rejects_fractional_coordinate, {
+GUNIT_TEST(atlas_rejects_fractional_coordinate,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -145,10 +137,9 @@ GUNIT_TEST(atlas_rejects_fractional_coordinate, {
         !gdim2_atlas__test_parse(ctx.alloc, "{\"frames\":{\"bad\":{\"x\":1.5}}}", &ctx.atlas)
     );
     gunit_assert("failed parse clears output", ctx.atlas.frames == NULL && ctx.atlas.animations == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_rejects_duplicate_frame, {
+GUNIT_TEST(atlas_rejects_duplicate_frame,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -158,10 +149,9 @@ GUNIT_TEST(atlas_rejects_duplicate_frame, {
         !gdim2_atlas__test_parse(ctx.alloc, "{\"frames\":{\"x\":{},\"x\":{}}}", &ctx.atlas)
     );
     gunit_assert("failed parse clears output", ctx.atlas.frames == NULL && ctx.atlas.animations == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_rejects_embedded_nul, {
+GUNIT_TEST(atlas_rejects_embedded_nul,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -171,29 +161,26 @@ GUNIT_TEST(atlas_rejects_embedded_nul, {
         !gdim2_atlas__test_parse(ctx.alloc, "{\"frames\":{\"x\\u0000y\":{}}}", &ctx.atlas)
     );
     gunit_assert("failed parse clears output", ctx.atlas.frames == NULL && ctx.atlas.animations == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_rejects_nonobject, {
+GUNIT_TEST(atlas_rejects_nonobject,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
     gdim2_atlas_destroy(ctx.alloc, &ctx.atlas);
     gunit_assert("nonobject atlas rejected", !gdim2_atlas__test_parse(ctx.alloc, "[1,2]", &ctx.atlas));
     gunit_assert("failed parse clears output", ctx.atlas.frames == NULL && ctx.atlas.animations == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_destroy_releases_allocations, {
+GUNIT_TEST(atlas_destroy_releases_allocations,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
     gdim2_atlas_destroy(ctx.alloc, &ctx.atlas);
     gunit_assert("atlas destruction releases memory", ctx.allocations.live == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(atlas_allocation_failures_release_partial_state, {
+GUNIT_TEST(atlas_allocation_failures_release_partial_state,
     gdim2_atlas__TestContext ctx = {0};
     gunit_defer(gdim2_atlas__test_destroy, &ctx);
     gunit_assert("create", gdim2_atlas__test_create(&ctx));
@@ -207,8 +194,7 @@ GUNIT_TEST(atlas_allocation_failures_release_partial_state, {
         );
         gunit_assert("failed parse releases partial atlas", ctx.allocations.live == 0);
     }
-    gunit_return();
-})
+)
 
 gunit_main();
 

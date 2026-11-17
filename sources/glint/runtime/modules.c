@@ -355,11 +355,11 @@ bool gmod_Modules_shutdown(galloc_Allocator alloc, gmod_Modules* modules) {
         return false;
     }
 
-    if (modules->phase == GMOD_IDLE) {
-        return true;
+    if (modules->phase != GMOD_IDLE && modules->phase != GMOD_ACTIVE) {
+        return false;
     }
 
-    if (modules->phase != GMOD_ACTIVE || !gmod__preflight_unload(modules)) {
+    if (modules->phase == GMOD_ACTIVE && !gmod__preflight_unload(modules)) {
         return false;
     }
 

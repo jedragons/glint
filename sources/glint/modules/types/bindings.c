@@ -11,10 +11,6 @@
 
 #define GTYPES_BINDINGS_VEC2_META "glint.Vec2"
 
-typedef struct gtypes_bindings__TypesBindings {
-    galloc_Allocator alloc;
-} gtypes_bindings__TypesBindings;
-
 typedef struct gtypes_bindings__NamedColor {
     const char* name;
     uint8_t r;
@@ -36,9 +32,9 @@ static const gtypes_bindings__NamedColor gtypes_bindings__named_colors[] = {
     {"magenta", 255, 0, 255, 255},
 };
 
-static galloc_Allocator gtypes_bindings__allocator(lua_State* lua);
-static void gtypes_bindings__number_field(galloc_Allocator alloc, lua_State* lua, const char* key, lua_Number value);
-static void gtypes_bindings__integer_field(galloc_Allocator alloc, lua_State* lua, const char* key, lua_Integer value);
+static void gtypes_bindings__push_vec2(lua_State* lua, float x, float y);
+static void gtypes_bindings__number_field(lua_State* lua, const char* key, lua_Number value);
+static void gtypes_bindings__integer_field(lua_State* lua, const char* key, lua_Integer value);
 static float gtypes_bindings__get_number(lua_State* lua, int index, const char* field);
 static int gtypes_bindings__vec2_new(lua_State* lua);
 static int gtypes_bindings__vec2_add(lua_State* lua);
@@ -51,48 +47,30 @@ static int gtypes_bindings__vec2_normalize(lua_State* lua);
 static gvec2_Vec2 gtypes_bindings__check_vec2(lua_State* lua, int index);
 static int gtypes_bindings__rect_new(lua_State* lua);
 static uint8_t gtypes_bindings__color_channel(lua_State* lua, int index);
-static void gtypes_bindings__push_color(
-    galloc_Allocator alloc,
-    lua_State* lua,
-    uint8_t r,
-    uint8_t g,
-    uint8_t b,
-    uint8_t a
-);
+static void gtypes_bindings__push_color(lua_State* lua, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 static int gtypes_bindings__color_new(lua_State* lua);
 static int gtypes_bindings__color_index(lua_State* lua);
-static void gtypes_bindings__set_function(
-    galloc_Allocator alloc,
-    lua_State* lua,
-    int context,
-    const char* name,
-    lua_CFunction function
-);
+static void gtypes_bindings__set_function(lua_State* lua, const char* name, lua_CFunction function);
 
 void gtypes_bindings_push_vec2(galloc_Allocator alloc, lua_State* lua, float x, float y) {
     (void)alloc;
-    lua_createtable(lua, 0, 2);
-    gtypes_bindings__number_field(alloc, lua, "x", x);
-    gtypes_bindings__number_field(alloc, lua, "y", y);
-    luaL_setmetatable(lua, GTYPES_BINDINGS_VEC2_META);
+    gtypes_bindings__push_vec2(lua, x, y);
 }
 
 void gtypes_bindings_install_vec2_ops(galloc_Allocator alloc, lua_State* lua, int metatable) {
+    (void)alloc;
     metatable = lua_absindex(lua, metatable);
-    gtypes_bindings__TypesBindings* ctx = lua_newuserdatauv(lua, sizeof(*ctx), 0);
-    ctx->alloc = alloc;
-    int context = lua_gettop(lua);
     lua_pushvalue(lua, metatable);
-    gtypes_bindings__set_function(alloc, lua, context, "__add", gtypes_bindings__vec2_add);
-    gtypes_bindings__set_function(alloc, lua, context, "__sub", gtypes_bindings__vec2_subtract);
-    gtypes_bindings__set_function(alloc, lua, context, "__mul", gtypes_bindings__vec2_multiply);
-    gtypes_bindings__set_function(alloc, lua, context, "__div", gtypes_bindings__vec2_divide);
+    gtypes_bindings__set_function(lua, "__add", gtypes_bindings__vec2_add);
+    gtypes_bindings__set_function(lua, "__sub", gtypes_bindings__vec2_subtract);
+    gtypes_bindings__set_function(lua, "__mul", gtypes_bindings__vec2_multiply);
+    gtypes_bindings__set_function(lua, "__div", gtypes_bindings__vec2_divide);
     lua_newtable(lua);
-    gtypes_bindings__set_function(alloc, lua, context, "scale", gtypes_bindings__vec2_scale);
-    gtypes_bindings__set_function(alloc, lua, context, "length", gtypes_bindings__vec2_length);
-    gtypes_bindings__set_function(alloc, lua, context, "normalize", gtypes_bindings__vec2_normalize);
+    gtypes_bindings__set_function(lua, "scale", gtypes_bindings__vec2_scale);
+    gtypes_bindings__set_function(lua, "length", gtypes_bindings__vec2_length);
+    gtypes_bindings__set_function(lua, "normalize", gtypes_bindings__vec2_normalize);
     lua_setfield(lua, metatable, "__vec2_methods");
-    lua_pop(lua, 2);
+    lua_pop(lua, 1);
 }
 
 bool gtypes_bindings_bind(galloc_Allocator alloc, lua_State* lua) {
@@ -100,9 +78,6 @@ bool gtypes_bindings_bind(galloc_Allocator alloc, lua_State* lua) {
         return false;
     }
 
-    gtypes_bindings__TypesBindings* ctx = lua_newuserdatauv(lua, sizeof(*ctx), 0);
-    ctx->alloc = alloc;
-    int context = lua_gettop(lua);
     luaL_newmetatable(lua, GTYPES_BINDINGS_VEC2_META);
     gtypes_bindings_install_vec2_ops(alloc, lua, -1);
     lua_getfield(lua, -1, "__vec2_methods");
@@ -110,20 +85,19 @@ bool gtypes_bindings_bind(galloc_Allocator alloc, lua_State* lua) {
     lua_pop(lua, 1);
 
     lua_newtable(lua);
-    gtypes_bindings__set_function(alloc, lua, context, "new", gtypes_bindings__vec2_new);
+    gtypes_bindings__set_function(lua, "new", gtypes_bindings__vec2_new);
     lua_setglobal(lua, "Vec2");
 
     lua_newtable(lua);
-    gtypes_bindings__set_function(alloc, lua, context, "new", gtypes_bindings__rect_new);
+    gtypes_bindings__set_function(lua, "new", gtypes_bindings__rect_new);
     lua_setglobal(lua, "Rect");
 
     lua_newtable(lua);
-    gtypes_bindings__set_function(alloc, lua, context, "new", gtypes_bindings__color_new);
+    gtypes_bindings__set_function(lua, "new", gtypes_bindings__color_new);
     lua_newtable(lua);
-    gtypes_bindings__set_function(alloc, lua, context, "__index", gtypes_bindings__color_index);
+    gtypes_bindings__set_function(lua, "__index", gtypes_bindings__color_index);
     lua_setmetatable(lua, -2);
     lua_setglobal(lua, "Color");
-    lua_pop(lua, 1);
     return true;
 }
 
@@ -146,19 +120,19 @@ static int gtypes_bindings__install(lua_State* lua) {
     return 0;
 }
 
-static galloc_Allocator gtypes_bindings__allocator(lua_State* lua) {
-    gtypes_bindings__TypesBindings* ctx = lua_touserdata(lua, lua_upvalueindex(1));
-    return ctx->alloc;
+static void gtypes_bindings__push_vec2(lua_State* lua, float x, float y) {
+    lua_createtable(lua, 0, 2);
+    gtypes_bindings__number_field(lua, "x", x);
+    gtypes_bindings__number_field(lua, "y", y);
+    luaL_setmetatable(lua, GTYPES_BINDINGS_VEC2_META);
 }
 
-static void gtypes_bindings__number_field(galloc_Allocator alloc, lua_State* lua, const char* key, lua_Number value) {
-    (void)alloc;
+static void gtypes_bindings__number_field(lua_State* lua, const char* key, lua_Number value) {
     lua_pushnumber(lua, value);
     lua_setfield(lua, -2, key);
 }
 
-static void gtypes_bindings__integer_field(galloc_Allocator alloc, lua_State* lua, const char* key, lua_Integer value) {
-    (void)alloc;
+static void gtypes_bindings__integer_field(lua_State* lua, const char* key, lua_Integer value) {
     lua_pushinteger(lua, value);
     lua_setfield(lua, -2, key);
 }
@@ -179,7 +153,7 @@ static float gtypes_bindings__get_number(lua_State* lua, int index, const char* 
 static int gtypes_bindings__vec2_new(lua_State* lua) {
     float x = (float)luaL_optnumber(lua, 1, 0);
     float y = (float)luaL_optnumber(lua, 2, 0);
-    gtypes_bindings_push_vec2(gtypes_bindings__allocator(lua), lua, x, y);
+    gtypes_bindings__push_vec2(lua, x, y);
     return 1;
 }
 
@@ -187,7 +161,7 @@ static int gtypes_bindings__vec2_add(lua_State* lua) {
     gvec2_Vec2 a = gtypes_bindings__check_vec2(lua, 1);
     gvec2_Vec2 b = gtypes_bindings__check_vec2(lua, 2);
     gvec2_Vec2 result = gvec2_add(a, b);
-    gtypes_bindings_push_vec2(gtypes_bindings__allocator(lua), lua, result.x, result.y);
+    gtypes_bindings__push_vec2(lua, result.x, result.y);
     return 1;
 }
 
@@ -195,7 +169,7 @@ static int gtypes_bindings__vec2_subtract(lua_State* lua) {
     gvec2_Vec2 a = gtypes_bindings__check_vec2(lua, 1);
     gvec2_Vec2 b = gtypes_bindings__check_vec2(lua, 2);
     gvec2_Vec2 result = gvec2_sub(a, b);
-    gtypes_bindings_push_vec2(gtypes_bindings__allocator(lua), lua, result.x, result.y);
+    gtypes_bindings__push_vec2(lua, result.x, result.y);
     return 1;
 }
 
@@ -203,7 +177,7 @@ static int gtypes_bindings__vec2_multiply(lua_State* lua) {
     gvec2_Vec2 a = gtypes_bindings__check_vec2(lua, 1);
     gvec2_Vec2 b = gtypes_bindings__check_vec2(lua, 2);
     gvec2_Vec2 result = gvec2_mul(a, b);
-    gtypes_bindings_push_vec2(gtypes_bindings__allocator(lua), lua, result.x, result.y);
+    gtypes_bindings__push_vec2(lua, result.x, result.y);
     return 1;
 }
 
@@ -211,7 +185,7 @@ static int gtypes_bindings__vec2_divide(lua_State* lua) {
     gvec2_Vec2 a = gtypes_bindings__check_vec2(lua, 1);
     gvec2_Vec2 b = gtypes_bindings__check_vec2(lua, 2);
     gvec2_Vec2 result = gvec2_div(a, b);
-    gtypes_bindings_push_vec2(gtypes_bindings__allocator(lua), lua, result.x, result.y);
+    gtypes_bindings__push_vec2(lua, result.x, result.y);
     return 1;
 }
 
@@ -219,7 +193,7 @@ static int gtypes_bindings__vec2_scale(lua_State* lua) {
     gvec2_Vec2 value = gtypes_bindings__check_vec2(lua, 1);
     float scale = (float)luaL_checknumber(lua, 2);
     gvec2_Vec2 result = gvec2_scale(value, scale);
-    gtypes_bindings_push_vec2(gtypes_bindings__allocator(lua), lua, result.x, result.y);
+    gtypes_bindings__push_vec2(lua, result.x, result.y);
     return 1;
 }
 
@@ -237,7 +211,7 @@ static int gtypes_bindings__vec2_normalize(lua_State* lua) {
         return 1;
     }
 
-    gtypes_bindings_push_vec2(gtypes_bindings__allocator(lua), lua, result.x, result.y);
+    gtypes_bindings__push_vec2(lua, result.x, result.y);
     return 1;
 }
 
@@ -248,17 +222,15 @@ static gvec2_Vec2 gtypes_bindings__check_vec2(lua_State* lua, int index) {
 }
 
 static int gtypes_bindings__rect_new(lua_State* lua) {
-    galloc_Allocator alloc = gtypes_bindings__allocator(lua);
     float x = (float)luaL_optnumber(lua, 1, 0);
     float y = (float)luaL_optnumber(lua, 2, 0);
     float w = (float)luaL_optnumber(lua, 3, 0);
     float h = (float)luaL_optnumber(lua, 4, 0);
-    (void)alloc;
     lua_createtable(lua, 0, 4);
-    gtypes_bindings__number_field(alloc, lua, "x", x);
-    gtypes_bindings__number_field(alloc, lua, "y", y);
-    gtypes_bindings__number_field(alloc, lua, "w", w);
-    gtypes_bindings__number_field(alloc, lua, "h", h);
+    gtypes_bindings__number_field(lua, "x", x);
+    gtypes_bindings__number_field(lua, "y", y);
+    gtypes_bindings__number_field(lua, "w", w);
+    gtypes_bindings__number_field(lua, "h", h);
     return 1;
 }
 
@@ -271,20 +243,12 @@ static uint8_t gtypes_bindings__color_channel(lua_State* lua, int index) {
     return (uint8_t)value;
 }
 
-static void gtypes_bindings__push_color(
-    galloc_Allocator alloc,
-    lua_State* lua,
-    uint8_t r,
-    uint8_t g,
-    uint8_t b,
-    uint8_t a
-) {
-    (void)alloc;
+static void gtypes_bindings__push_color(lua_State* lua, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     lua_createtable(lua, 0, 4);
-    gtypes_bindings__integer_field(alloc, lua, "r", r);
-    gtypes_bindings__integer_field(alloc, lua, "g", g);
-    gtypes_bindings__integer_field(alloc, lua, "b", b);
-    gtypes_bindings__integer_field(alloc, lua, "a", a);
+    gtypes_bindings__integer_field(lua, "r", r);
+    gtypes_bindings__integer_field(lua, "g", g);
+    gtypes_bindings__integer_field(lua, "b", b);
+    gtypes_bindings__integer_field(lua, "a", a);
 }
 
 static int gtypes_bindings__color_new(lua_State* lua) {
@@ -309,7 +273,7 @@ static int gtypes_bindings__color_new(lua_State* lua) {
         return luaL_error(lua, "Color.new expects zero, one, three, or four arguments");
     }
 
-    gtypes_bindings__push_color(gtypes_bindings__allocator(lua), lua, r, g, b, a);
+    gtypes_bindings__push_color(lua, r, g, b, a);
     return 1;
 }
 
@@ -318,7 +282,7 @@ static int gtypes_bindings__color_index(lua_State* lua) {
     for (size_t i = 0; i < sizeof(gtypes_bindings__named_colors) / sizeof(gtypes_bindings__named_colors[0]); i++) {
         const gtypes_bindings__NamedColor* color = &gtypes_bindings__named_colors[i];
         if (strcmp(name, color->name) == 0) {
-            gtypes_bindings__push_color(gtypes_bindings__allocator(lua), lua, color->r, color->g, color->b, color->a);
+            gtypes_bindings__push_color(lua, color->r, color->g, color->b, color->a);
             return 1;
         }
     }
@@ -327,15 +291,7 @@ static int gtypes_bindings__color_index(lua_State* lua) {
     return 1;
 }
 
-static void gtypes_bindings__set_function(
-    galloc_Allocator alloc,
-    lua_State* lua,
-    int context,
-    const char* name,
-    lua_CFunction function
-) {
-    (void)alloc;
-    lua_pushvalue(lua, context);
-    lua_pushcclosure(lua, function, 1);
+static void gtypes_bindings__set_function(lua_State* lua, const char* name, lua_CFunction function) {
+    lua_pushcfunction(lua, function);
     lua_setfield(lua, -2, name);
 }

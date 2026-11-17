@@ -37,7 +37,7 @@ typedef struct gwindow__TestContext {
 static bool gwindow__test_create(gwindow__TestContext* context);
 static void gwindow__test_free(void* user);
 
-GUNIT_TEST(window_host_properties, {
+GUNIT_TEST(window_host_properties,
     gwindow__TestContext context = {0};
     gunit_defer(gwindow__test_free, &context);
     gunit_assert("create test context", gwindow__test_create(&context));
@@ -48,10 +48,9 @@ GUNIT_TEST(window_host_properties, {
             "assert(window.dt == .25 and window.time == 123.5 and window.width == 800 and window.height == 600)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(window_unknown_property, {
+GUNIT_TEST(window_unknown_property,
     gwindow__TestContext context = {0};
     gunit_defer(gwindow__test_free, &context);
     gunit_assert("create test context", gwindow__test_create(&context));
@@ -59,10 +58,9 @@ GUNIT_TEST(window_unknown_property, {
         "test helper succeeds",
         gwindow__test_run(context.lua, "assert(window.unknown == nil and type(Window) == 'table')")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(window_properties_are_readonly, {
+GUNIT_TEST(window_properties_are_readonly,
     gwindow__TestContext context = {0};
     gunit_defer(gwindow__test_free, &context);
     gunit_assert("create test context", gwindow__test_create(&context));
@@ -70,26 +68,23 @@ GUNIT_TEST(window_properties_are_readonly, {
         "test helper succeeds",
         gwindow__test_run(context.lua, "assert(not pcall(function() window.width = 1 end))")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(window_frame_time_reads_host_each_time, {
+GUNIT_TEST(window_frame_time_reads_host_each_time,
     gwindow__TestContext context = {0};
     gunit_defer(gwindow__test_free, &context);
     gunit_assert("create test context", gwindow__test_create(&context));
     context.delta = 1;
     gunit_assert("test helper succeeds", gwindow__test_run(context.lua, "assert(window.dt == 1)"));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(window_default_frame_time, {
+GUNIT_TEST(window_default_frame_time,
     gwindow__TestContext context = {0};
     gunit_defer(gwindow__test_free, &context);
     gunit_assert("create test context", gwindow__test_create(&context));
     gunit_assert("default frame time binding", gwindow_bindings_bind(context.alloc, context.lua, NULL, NULL));
     gunit_assert("test helper succeeds", gwindow__test_run(context.lua, "assert(window.dt == .5)"));
-    gunit_return();
-})
+)
 
 gunit_main();
 

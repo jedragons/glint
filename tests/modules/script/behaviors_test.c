@@ -84,7 +84,7 @@ static bool gscript_behavior__test_shared(gscript_behavior__TestContext* context
 static bool gscript_behavior__test_module(gscript_behavior__TestContext* context);
 static bool gscript_behavior__test_callback_errors(gscript_behavior__TestContext* context);
 
-GUNIT_TEST(behavior_setup_runs_on_attach, {
+GUNIT_TEST(behavior_setup_runs_on_attach,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -93,10 +93,9 @@ GUNIT_TEST(behavior_setup_runs_on_attach, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(parent.count == 1 and parent:valid())")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(spawned_behavior_waits_until_next_update, {
+GUNIT_TEST(spawned_behavior_waits_until_next_update,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -110,10 +109,9 @@ GUNIT_TEST(spawned_behavior_waits_until_next_update, {
             "assert(parent.count == 2 and child.started and child:valid())"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(behavior_can_destroy_itself_during_update, {
+GUNIT_TEST(behavior_can_destroy_itself_during_update,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -128,10 +126,9 @@ GUNIT_TEST(behavior_can_destroy_itself_during_update, {
             "assert(parent.count == 3 and not child:valid() and child_destroyed == 1)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(replacement_destroys_prior_behavior_and_runs_setup, {
+GUNIT_TEST(replacement_destroys_prior_behavior_and_runs_setup,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -145,10 +142,9 @@ GUNIT_TEST(replacement_destroys_prior_behavior_and_runs_setup, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(parent.version == 1)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(reload_updates_hooks_without_repeating_setup, {
+GUNIT_TEST(reload_updates_hooks_without_repeating_setup,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -165,10 +161,9 @@ GUNIT_TEST(reload_updates_hooks_without_repeating_setup, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(parent.version == 200)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(manager_shutdown_uses_reloaded_destroy_hook, {
+GUNIT_TEST(manager_shutdown_uses_reloaded_destroy_hook,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -189,10 +184,9 @@ GUNIT_TEST(manager_shutdown_uses_reloaded_destroy_hook, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(reload_destroyed)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(replacing_another_behavior_defers_its_update, {
+GUNIT_TEST(replacing_another_behavior_defers_its_update,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -211,10 +205,9 @@ GUNIT_TEST(replacing_another_behavior_defers_its_update, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(new_updates == 1)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(invalid_reload_preserves_script_and_can_be_retried, {
+GUNIT_TEST(invalid_reload_preserves_script_and_can_be_retried,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -238,10 +231,9 @@ GUNIT_TEST(invalid_reload_preserves_script_and_can_be_retried, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(new_updates == 12)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shutdown_rejects_new_behavior_spawns, {
+GUNIT_TEST(shutdown_rejects_new_behavior_spawns,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -254,10 +246,9 @@ GUNIT_TEST(shutdown_rejects_new_behavior_spawns, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(shutdown_blocked)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(update_recovers_after_transient_allocator_denial, {
+GUNIT_TEST(update_recovers_after_transient_allocator_denial,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -289,10 +280,9 @@ GUNIT_TEST(update_recovers_after_transient_allocator_denial, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(updates == before_recovery + 1)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(update_recovers_after_persistent_allocator_denial, {
+GUNIT_TEST(update_recovers_after_persistent_allocator_denial,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -324,10 +314,9 @@ GUNIT_TEST(update_recovers_after_persistent_allocator_denial, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(updates == before_recovery + 1)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(behavior_manager_allows_only_one_observer, {
+GUNIT_TEST(behavior_manager_allows_only_one_observer,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -335,10 +324,9 @@ GUNIT_TEST(behavior_manager_allows_only_one_observer, {
         "single observer",
         gscript_behavior_new(context.script, context.world, context.vfs, context.cache) == NULL
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(behavior_attach_rejects_another_world, {
+GUNIT_TEST(behavior_attach_rejects_another_world,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -353,10 +341,9 @@ GUNIT_TEST(behavior_attach_rejects_another_world, {
         "reject another world",
         !gscript_behavior_attach(context.behaviors, other, "/glint-native-destroy.lua")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(native_entity_destroy_invokes_hook_once, {
+GUNIT_TEST(native_entity_destroy_invokes_hook_once,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -372,10 +359,9 @@ GUNIT_TEST(native_entity_destroy_invokes_hook_once, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(destroyed == 1)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(world_clear_discards_destroy_callback_error, {
+GUNIT_TEST(world_clear_discards_destroy_callback_error,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -397,10 +383,9 @@ GUNIT_TEST(world_clear_discards_destroy_callback_error, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(destroyed == 1)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shared_behavior_components_share_asset_but_not_state, {
+GUNIT_TEST(shared_behavior_components_share_asset_but_not_state,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -419,10 +404,9 @@ GUNIT_TEST(shared_behavior_components_share_asset_but_not_state, {
     lua_rawgeti(context.lua, LUA_REGISTRYINDEX, second->state_ref);
     gunit_assert("components own separate Lua tables", !lua_rawequal(context.lua, -1, -2));
     lua_pop(context.lua, 2);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shared_behavior_source_executes_once, {
+GUNIT_TEST(shared_behavior_source_executes_once,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -436,10 +420,9 @@ GUNIT_TEST(shared_behavior_source_executes_once, {
             "assert(loads == 1 and a.count == 1 and b.count == 1 and math.min(a.shared, b.shared) == 1 and math.max(a.shared, b.shared) == 2)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shared_behavior_reload_preserves_lua_state, {
+GUNIT_TEST(shared_behavior_reload_preserves_lua_state,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -474,10 +457,9 @@ GUNIT_TEST(shared_behavior_reload_preserves_lua_state, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(rawequal(old_state, new_state))")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(replacing_shared_behavior_collects_old_state, {
+GUNIT_TEST(replacing_shared_behavior_collects_old_state,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -524,10 +506,9 @@ GUNIT_TEST(replacing_shared_behavior_collects_old_state, {
     lua_rawgeti(context.lua, LUA_REGISTRYINDEX, second->state_ref);
     gunit_assert("replacement owns a separate Lua table", !lua_rawequal(context.lua, -1, -2));
     lua_pop(context.lua, 2);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(script_module_imports_owned_services, {
+GUNIT_TEST(script_module_imports_owned_services,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, true));
@@ -536,10 +517,9 @@ GUNIT_TEST(script_module_imports_owned_services, {
     gscript_Service* script = gecs_context_get(context.world, GECS_CONTEXT(context.world, gscript_Service));
     gunit_assert("dependencies provided", vfs != NULL && assets != NULL && script != NULL && script->module_owned);
     gunit_assert("asset module owns polling", !assets->host_polls);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(script_module_updates_attached_behaviors, {
+GUNIT_TEST(script_module_updates_attached_behaviors,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, true));
@@ -549,10 +529,9 @@ GUNIT_TEST(script_module_updates_attached_behaviors, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(module_entity.count == 1)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(script_module_reload_recovers_without_leaking_lua_errors, {
+GUNIT_TEST(script_module_reload_recovers_without_leaking_lua_errors,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, true));
@@ -573,10 +552,9 @@ GUNIT_TEST(script_module_reload_recovers_without_leaking_lua_errors, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(module_entity.count == 12)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(script_module_allocation_failure_retains_diagnostic_then_retries, {
+GUNIT_TEST(script_module_allocation_failure_retains_diagnostic_then_retries,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, true));
@@ -598,10 +576,9 @@ GUNIT_TEST(script_module_allocation_failure_retains_diagnostic_then_retries, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(module_entity.count == before_recovery + 1)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(script_module_unload_removes_context, {
+GUNIT_TEST(script_module_unload_removes_context,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, true));
@@ -614,10 +591,9 @@ GUNIT_TEST(script_module_unload_removes_context, {
         "script context removed",
         gecs_context_get(context.world, GECS_CONTEXT(context.world, gscript_Service)) == NULL
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(behavior_destroy_is_deferred_during_cache_callback, {
+GUNIT_TEST(behavior_destroy_is_deferred_during_cache_callback,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -652,10 +628,9 @@ GUNIT_TEST(behavior_destroy_is_deferred_during_cache_callback, {
     gunit_assert("manager remains usable", gscript_behavior_update(context.alloc, context.behaviors));
     gunit_assert("retry destroy", gscript_behavior_destroy(context.alloc, context.behaviors));
     context.behaviors = NULL;
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_unload_is_deferred_during_asset_callback, {
+GUNIT_TEST(module_unload_is_deferred_during_asset_callback,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, true));
@@ -694,10 +669,9 @@ GUNIT_TEST(module_unload_is_deferred_during_asset_callback, {
         "context removed",
         gecs_context_get(context.world, GECS_CONTEXT(context.world, gscript_Service)) == NULL
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(setup_callback_error_disables_only_shared_asset, {
+GUNIT_TEST(setup_callback_error_disables_only_shared_asset,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -708,10 +682,9 @@ GUNIT_TEST(setup_callback_error_disables_only_shared_asset, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(setups == 1 and other == 1)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(update_callback_error_disables_shared_asset_once, {
+GUNIT_TEST(update_callback_error_disables_shared_asset_once,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -729,10 +702,9 @@ GUNIT_TEST(update_callback_error_disables_shared_asset_once, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(attempts == 1 and other == 2)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(disabled_asset_recovers_after_valid_reload, {
+GUNIT_TEST(disabled_asset_recovers_after_valid_reload,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -764,10 +736,9 @@ GUNIT_TEST(disabled_asset_recovers_after_valid_reload, {
         "test helper succeeds",
         gscript_behavior__test_run(context.alloc, context.script, "assert(recovered == 2 and other == 5)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shared_destroy_callback_error_is_consumed_once, {
+GUNIT_TEST(shared_destroy_callback_error_is_consumed_once,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create test context", gscript_behavior__test_create(&context, false));
@@ -789,8 +760,7 @@ GUNIT_TEST(shared_destroy_callback_error_is_consumed_once, {
         )
     );
     gunit_assert("stack remains balanced", lua_gettop(context.lua) == 0);
-    gunit_return();
-})
+)
 
 gunit_main();
 

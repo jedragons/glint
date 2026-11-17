@@ -16,9 +16,7 @@
 #include <glint/unit/unit.h>
 
 #include <lauxlib.h>
-#include <raylib.h>
 
-#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -48,8 +46,8 @@ typedef struct gdim2__TestContext {
     bool texture_fixture;
     size_t draws;
     size_t unloads;
-    Rectangle sources[16];
-    Rectangle destinations[16];
+    grect_Rect sources[16];
+    grect_Rect destinations[16];
     gdim2__TestUnload callback;
     gasset_Service host_assets;
     glint_Config config;
@@ -82,6 +80,7 @@ static bool gdim2__test_virtual_list(
 static bool gdim2__test_unload_during_load(galloc_Allocator alloc, void* instance, const char* path, void* user);
 
 static void gdim2__test_create(gdim2__TestContext* ctx);
+static bool gdim2__test_create_bindings(gdim2__TestContext* ctx, bool shared);
 static bool gdim2__test_create_reload(gdim2__TestContext* ctx, bool shared);
 static bool gdim2__test_create_virtual(gdim2__TestContext* ctx);
 static bool gdim2__test_create_texture(gdim2__TestContext* ctx);
@@ -91,100 +90,49 @@ static bool gdim2__test_create_other_world(gdim2__TestContext* ctx);
 static void gdim2__test_update(gdim2__TestContext* ctx);
 static void gdim2__test_destroy(void* user);
 
-Image LoadImageFromMemory(const char* type, const unsigned char* bytes, int size) {
+gplatform_Texture gplatform_texture_load(const char* type, const void* bytes, size_t size) {
     if (!gunit_check(
-            "decoder receives PNG bytes",
+            "texture loader receives PNG bytes",
             type != NULL && strcmp(type, ".png") == 0 && bytes != NULL && size > 0
         )) {
-        return (Image) {0};
+        return (gplatform_Texture) {0};
     }
-    return (Image) {.data = (void*)bytes, .width = 64, .height = 16, .mipmaps = 1, .format = 7};
+    return (gplatform_Texture) {.id = 1, .width = 64, .height = 16, .mipmaps = 1, .format = 7};
 }
 
-bool IsImageValid(Image image) {
-    return image.data != NULL;
-}
-
-void UnloadImage(Image image) {
-    (void)image;
-}
-
-Texture2D LoadTextureFromImage(Image image) {
-    if (!gunit_check("decoded image is valid", image.data != NULL)) {
-        return (Texture2D) {0};
-    }
-    return (Texture2D) {.id = 1, .width = 64, .height = 16, .mipmaps = 1, .format = 7};
-}
-
-bool IsTextureValid(Texture2D texture) {
+bool gplatform_texture_valid(gplatform_Texture texture) {
     return texture.id != 0;
 }
 
-void UnloadTexture(Texture2D texture) {
+void gplatform_texture_unload(gplatform_Texture texture) {
     if (!gunit_check("unload valid texture", texture.id != 0)) {
         return;
     }
     gdim2__test_active->unloads += 1;
 }
 
-void DrawTexturePro(Texture2D texture, Rectangle src, Rectangle dest, Vector2 origin, float rotation, Color tint) {
+void gplatform_draw_texture(gplatform_Texture texture, gplatform_TextureDrawParams params) {
+    gdim2__TestContext* ctx = gdim2__test_active;
     if (!gunit_check(
             "drawing uses expected defaults",
-            texture.id != 0 && origin.x == 0 && origin.y == 0 && rotation == 0 && tint.a == 255
+            texture.id != 0 && params.origin.x == 0 && params.origin.y == 0 && params.rotation == 0
+                && params.tint.a == 255
         )) {
         return;
     }
-    if (!gunit_check("draw recording has capacity", gdim2__test_active->draws < 16)) {
+    if (!gunit_check("draw recording has capacity", ctx->draws < 16)) {
         return;
     }
-    gdim2__test_active->sources[gdim2__test_active->draws] = src;
-    gdim2__test_active->destinations[gdim2__test_active->draws] = dest;
-    gdim2__test_active->draws += 1;
+    ctx->sources[ctx->draws] = params.source;
+    ctx->destinations[ctx->draws] = params.dest;
+    ctx->draws += 1;
 }
 
-void ClearBackground(Color color) {
+void gplatform_clear_background(gcolor_Color color) {
     (void)color;
 }
 
-gplatform_Texture gplatform_texture_load(const char* type, const void* bytes, size_t size) {
-    if (type == NULL || *type == 0 || bytes == NULL || size == 0 || size > INT_MAX) {
-        return (gplatform_Texture) {0};
-    }
-
-    Image image = LoadImageFromMemory(type, bytes, (int)size);
-    if (!IsImageValid(image)) {
-        return (gplatform_Texture) {0};
-    }
-
-    Texture2D texture = LoadTextureFromImage(image);
-    UnloadImage(image);
-    return (gplatform_Texture) {texture.id, texture.width, texture.height, texture.mipmaps, texture.format};
-}
-
-bool gplatform_texture_valid(gplatform_Texture t) {
-    return IsTextureValid((Texture2D) {t.id, t.width, t.height, t.mipmaps, t.format});
-}
-
-void gplatform_texture_unload(gplatform_Texture t) {
-    UnloadTexture((Texture2D) {t.id, t.width, t.height, t.mipmaps, t.format});
-}
-
-void gplatform_draw_texture(gplatform_Texture t, gplatform_TextureDrawParams p) {
-    DrawTexturePro(
-        (Texture2D) {t.id, t.width, t.height, t.mipmaps, t.format},
-        (Rectangle) {p.source.x, p.source.y, p.source.w, p.source.h},
-        (Rectangle) {p.dest.x, p.dest.y, p.dest.w, p.dest.h},
-        (Vector2) {p.origin.x, p.origin.y},
-        p.rotation,
-        (Color) {p.tint.r, p.tint.g, p.tint.b, p.tint.a}
-    );
-}
-
-void gplatform_clear_background(gcolor_Color c) {
-    ClearBackground((Color) {c.r, c.g, c.b, c.a});
-}
-
-GUNIT_TEST(virtual_atlas_without_native_path, {
+GUNIT_TEST(virtual_atlas_without_native_path,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gunit_assert("create virtual", gdim2__test_create_virtual(&ctx));
@@ -194,10 +142,9 @@ GUNIT_TEST(virtual_atlas_without_native_path, {
         "atlas loads without native paths",
         gdim2__test_run_script(ctx.alloc, ctx.script, source, "virtual-atlas")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shared_texture_reuses_asset, {
+GUNIT_TEST(shared_texture_reuses_asset,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gunit_assert("create texture", gdim2__test_create_texture(&ctx));
@@ -207,10 +154,9 @@ GUNIT_TEST(shared_texture_reuses_asset, {
         "same path shares one asset",
         first != NULL && first == gtexture_load(ctx.alloc, ctx.textures, "/glint-shared-texture.png")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shared_texture_reload_preserves_handle, {
+GUNIT_TEST(shared_texture_reload_preserves_handle,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gunit_assert("create texture", gdim2__test_create_texture(&ctx));
@@ -227,10 +173,9 @@ GUNIT_TEST(shared_texture_reload_preserves_handle, {
         "reload preserves shared handle",
         first == gtexture_load(ctx.alloc, ctx.textures, "/glint-shared-texture.png") && ctx.unloads == previous + 1
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(dim2_duplicate_dependency_imports, {
+GUNIT_TEST(dim2_duplicate_dependency_imports,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gunit_assert("create module", gdim2__test_create_module(&ctx));
@@ -244,10 +189,9 @@ GUNIT_TEST(dim2_duplicate_dependency_imports, {
     gunit_assert("load imported modules", gmod_Modules_load(ctx.alloc, ctx.modules));
     gdim2_Service* service = gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gdim2_Service));
     gunit_assert("2D instance published", service != NULL && service->instance != NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(dim2_example_renders_initial_sprites, {
+GUNIT_TEST(dim2_example_renders_initial_sprites,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gunit_assert("create module", gdim2__test_create_module(&ctx));
@@ -259,10 +203,9 @@ GUNIT_TEST(dim2_example_renders_initial_sprites, {
         ctx.draws == 2 && ctx.destinations[0].x == 96 && ctx.destinations[1].x == 224
     );
     gunit_assert("initial animation frames drawn", ctx.sources[0].x == 0 && ctx.sources[1].x == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(dim2_example_animation_advances, {
+GUNIT_TEST(dim2_example_animation_advances,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gunit_assert("create module", gdim2__test_create_module(&ctx));
@@ -272,10 +215,9 @@ GUNIT_TEST(dim2_example_animation_advances, {
     gmod_Modules_update(ctx.alloc, ctx.modules);
     gmod_Modules_render(ctx.alloc, ctx.modules);
     gunit_assert("animation advances after update", ctx.draws == 4 && ctx.sources[3].x == 16);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(dim2_module_unload_removes_service_and_texture, {
+GUNIT_TEST(dim2_module_unload_removes_service_and_texture,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gunit_assert("create module", gdim2__test_create_module(&ctx));
@@ -286,10 +228,9 @@ GUNIT_TEST(dim2_module_unload_removes_service_and_texture, {
     gunit_assert("module unload succeeds", gmod_Modules_unload(ctx.alloc, ctx.modules));
     gunit_assert("2D service removed", gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gdim2_Service)) == NULL);
     gunit_assert("atlas texture unloaded", ctx.unloads == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(dim2_unload_during_cache_callback, {
+GUNIT_TEST(dim2_unload_during_cache_callback,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gunit_assert("create module", gdim2__test_create_module(&ctx));
@@ -324,10 +265,9 @@ GUNIT_TEST(dim2_unload_during_cache_callback, {
     gunit_assert("service retained until retry", service != NULL && service->instance != NULL);
     gunit_assert("unload succeeds after callback", gmod_Modules_unload(ctx.alloc, ctx.modules));
     gunit_assert("service context removed", gecs_context_get(ctx.world, type) == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(dim2_missing_lua_service_fails_dependency_load, {
+GUNIT_TEST(dim2_missing_lua_service_fails_dependency_load,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gdim2__test_create(&ctx);
@@ -339,10 +279,9 @@ GUNIT_TEST(dim2_missing_lua_service_fails_dependency_load, {
     gmod_Module descriptor = gdim2_module();
     gunit_assert("import descriptor", gmod_Modules_import(ctx.alloc, ctx.modules, descriptor));
     gunit_assert("missing Lua service fails dependency load", !gmod_Modules_load(ctx.alloc, ctx.modules));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(dim2_missing_host_leaves_no_partial_instance, {
+GUNIT_TEST(dim2_missing_host_leaves_no_partial_instance,
     gdim2__TestContext ctx = {0};
     gunit_defer(gdim2__test_destroy, &ctx);
     gdim2__test_create(&ctx);
@@ -363,33 +302,38 @@ GUNIT_TEST(dim2_missing_host_leaves_no_partial_instance, {
     gunit_assert("import descriptor", gmod_Modules_import(ctx.alloc, ctx.modules, descriptor));
     gunit_assert("missing host fails cleanly", !gmod_Modules_load(ctx.alloc, ctx.modules));
     gunit_assert("no partial instance", gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gdim2_Service)) == NULL);
-    gunit_return();
-})
+)
 
 #define GDIM2_TEST_WITH_CACHES(name, ...) \
-    GUNIT_TEST(name##_local, { \
+    GUNIT_TEST(name##_local,  \
         gdim2__TestContext ctx = {0}; \
         gunit_defer(gdim2__test_destroy, &ctx); \
         gunit_assert("create reload", gdim2__test_create_reload(&ctx, false)); \
         __VA_ARGS__; \
-        gunit_return(); \
-    }) \
-    GUNIT_TEST(name##_shared, { \
+    ) \
+    GUNIT_TEST(name##_shared,  \
         gdim2__TestContext ctx = {0}; \
         gunit_defer(gdim2__test_destroy, &ctx); \
         gunit_assert("create reload", gdim2__test_create_reload(&ctx, true)); \
         __VA_ARGS__; \
-        gunit_return(); \
-    })
+    )
 
-GDIM2_TEST_WITH_CACHES(dim2_cache_owns_loaded_atlas, {
+GUNIT_TEST(dim2_cache_owns_loaded_atlas_shared,
+    gdim2__TestContext ctx = {0};
+    gunit_defer(gdim2__test_destroy, &ctx);
+    gunit_assert("create reload", gdim2__test_create_reload(&ctx, true));
+
     gunit_assert(
         "shared cache owns atlas",
-        !ctx.shared || gasset_Cache_contains(ctx.cache, "glint.dim2.atlas", "/glint-dim2-test-atlas.json")
+        gasset_Cache_contains(ctx.cache, "glint.dim2.atlas", "/glint-dim2-test-atlas.json")
     );
-})
+)
 
-GDIM2_TEST_WITH_CACHES(dim2_transform_mutation_invalidates_removed_handles, {
+GUNIT_TEST(dim2_transform_mutation_invalidates_removed_handles,
+    gdim2__TestContext ctx = {0};
+    gunit_defer(gdim2__test_destroy, &ctx);
+    gunit_assert("create bindings", gdim2__test_create_bindings(&ctx, false));
+
     gunit_assert(
         "transform_mutation",
         gdim2__test_run_script(
@@ -399,15 +343,15 @@ GDIM2_TEST_WITH_CACHES(dim2_transform_mutation_invalidates_removed_handles, {
             "transform_mutation"
         )
     );
-})
+)
 
 GDIM2_TEST_WITH_CACHES(dim2_transform_controls_rendered_destination, {
     gdim2_render(ctx.dim2);
     gunit_assert("sprites use original frame", ctx.draws == 2 && ctx.sources[0].x == 1 && ctx.sources[1].x == 1);
     gunit_assert(
         "transform controls destination",
-        ctx.destinations[0].x == 13 && ctx.destinations[0].y == 17 && ctx.destinations[0].width == 8
-            && ctx.destinations[0].height == 15
+        ctx.destinations[0].x == 13 && ctx.destinations[0].y == 17 && ctx.destinations[0].w == 8
+            && ctx.destinations[0].h == 15
     );
 })
 
@@ -552,7 +496,11 @@ GDIM2_TEST_WITH_CACHES(dim2_atlas_values_survive_reload, {
     gunit_assert("values resolve reloaded frames", ctx.draws == 2 && ctx.sources[0].x == 3 && ctx.sources[1].x == 3);
 })
 
-GDIM2_TEST_WITH_CACHES(dim2_standalone_transform_defaults, {
+GUNIT_TEST(dim2_standalone_transform_defaults,
+    gdim2__TestContext ctx = {0};
+    gunit_defer(gdim2__test_destroy, &ctx);
+    gunit_assert("create bindings", gdim2__test_create_bindings(&ctx, false));
+
     gunit_assert(
         "transform_defaults",
         gdim2__test_run_script(
@@ -562,9 +510,13 @@ GDIM2_TEST_WITH_CACHES(dim2_standalone_transform_defaults, {
             "transform_defaults"
         )
     );
-})
+)
 
-GDIM2_TEST_WITH_CACHES(dim2_standalone_transform_components, {
+GUNIT_TEST(dim2_standalone_transform_components,
+    gdim2__TestContext ctx = {0};
+    gunit_defer(gdim2__test_destroy, &ctx);
+    gunit_assert("create bindings", gdim2__test_create_bindings(&ctx, false));
+
     gunit_assert(
         "transform_components",
         gdim2__test_run_script(
@@ -574,9 +526,13 @@ GDIM2_TEST_WITH_CACHES(dim2_standalone_transform_components, {
             "transform_components"
         )
     );
-})
+)
 
-GDIM2_TEST_WITH_CACHES(dim2_transform_vector_arithmetic, {
+GUNIT_TEST(dim2_transform_vector_arithmetic,
+    gdim2__TestContext ctx = {0};
+    gunit_defer(gdim2__test_destroy, &ctx);
+    gunit_assert("create bindings", gdim2__test_create_bindings(&ctx, false));
+
     gunit_assert(
         "vector_operators",
         gdim2__test_run_script(
@@ -586,9 +542,13 @@ GDIM2_TEST_WITH_CACHES(dim2_transform_vector_arithmetic, {
             "vector_operators"
         )
     );
-})
+)
 
-GDIM2_TEST_WITH_CACHES(dim2_transform_vector_methods_and_references, {
+GUNIT_TEST(dim2_transform_vector_methods_and_references,
+    gdim2__TestContext ctx = {0};
+    gunit_defer(gdim2__test_destroy, &ctx);
+    gunit_assert("create bindings", gdim2__test_create_bindings(&ctx, false));
+
     gunit_assert(
         "vector_methods",
         gdim2__test_run_script(
@@ -598,9 +558,13 @@ GDIM2_TEST_WITH_CACHES(dim2_transform_vector_methods_and_references, {
             "vector_methods"
         )
     );
-})
+)
 
-GDIM2_TEST_WITH_CACHES(dim2_removed_component_vector_rejects_saved_methods, {
+GUNIT_TEST(dim2_removed_component_vector_rejects_saved_methods,
+    gdim2__TestContext ctx = {0};
+    gunit_defer(gdim2__test_destroy, &ctx);
+    gunit_assert("create bindings", gdim2__test_create_bindings(&ctx, false));
+
     gunit_assert(
         "removed_vector",
         gdim2__test_run_script(
@@ -610,7 +574,7 @@ GDIM2_TEST_WITH_CACHES(dim2_removed_component_vector_rejects_saved_methods, {
             "removed_vector"
         )
     );
-})
+)
 
 GDIM2_TEST_WITH_CACHES(dim2_rebinding_retains_original_world, {
     gunit_assert(
@@ -634,14 +598,18 @@ GDIM2_TEST_WITH_CACHES(dim2_rebinding_retains_original_world, {
     );
 })
 
-GDIM2_TEST_WITH_CACHES(dim2_destroy_unregisters_shared_atlas, {
+GUNIT_TEST(dim2_destroy_unregisters_shared_atlas_shared,
+    gdim2__TestContext ctx = {0};
+    gunit_defer(gdim2__test_destroy, &ctx);
+    gunit_assert("create reload", gdim2__test_create_reload(&ctx, true));
+
     gunit_assert("destroy original instance", gdim2_destroy(ctx.alloc, ctx.dim2));
     ctx.dim2 = NULL;
     gunit_assert(
         "atlas type removed",
-        !ctx.shared || !gasset_Cache_contains(ctx.cache, "glint.dim2.atlas", "/glint-dim2-test-atlas.json")
+        !gasset_Cache_contains(ctx.cache, "glint.dim2.atlas", "/glint-dim2-test-atlas.json")
     );
-})
+)
 
 GDIM2_TEST_WITH_CACHES(dim2_destroyed_instance_references_fail_safely, {
     gunit_assert(
@@ -688,27 +656,14 @@ static void gdim2__test_create(gdim2__TestContext* ctx) {
     gdim2__test_active = ctx;
 }
 
-static bool gdim2__test_create_reload(gdim2__TestContext* ctx, bool shared) {
+static bool gdim2__test_create_bindings(gdim2__TestContext* ctx, bool shared) {
     gdim2__test_create(ctx);
     ctx->shared = shared;
-    ctx->native_fixtures = true;
-    if (!gdim2__test_write_asset(
-            "glint-dim2-test-atlas.json",
-            "{\"frames\":{\"f\":{\"x\":1,\"w\":4,\"h\":5}},\"animations\":{\"a\":[\"f\"]}}"
-        )) {
-        return false;
-    }
-    if (!gdim2__test_write_asset("glint-dim2-test-atlas.png", "fake png")) {
-        return false;
-    }
     ctx->world = gecs_World_new(ctx->alloc);
     ctx->vfs = gvfs_create(ctx->alloc);
     ctx->script = gscript_lua_new(ctx->alloc);
     ctx->owns_script = true;
-    if (!gunit_check("reload environment created", ctx->world != NULL && ctx->vfs != NULL && ctx->script != NULL)) {
-        return false;
-    }
-    if (!gunit_check("native fixtures mounted", gvfs_mount(ctx->alloc, ctx->vfs, "/", "."))) {
+    if (!gunit_check("binding resources created", ctx->world != NULL && ctx->vfs != NULL && ctx->script != NULL)) {
         return false;
     }
     ctx->cache = shared ? gasset_Cache_create(ctx->alloc) : NULL;
@@ -722,7 +677,7 @@ static bool gdim2__test_create_reload(gdim2__TestContext* ctx, bool shared) {
     }
     lua_State* lua = gscript_lua_state(ctx->script);
     gecs_ID entity = gecs_spawn(ctx->world).id;
-    if (!gunit_check("sprite entity spawned", entity != 0)) {
+    if (!gunit_check("fixture entity spawned", entity != 0)) {
         return false;
     }
     gscript_bindings_push_entity(lua, (gecs_Entity) {ctx->world, entity});
@@ -733,16 +688,35 @@ static bool gdim2__test_create_reload(gdim2__TestContext* ctx, bool shared) {
     if (!gunit_check("2D API bound", gdim2_bindings_bind(ctx->alloc, ctx->dim2, lua))) {
         return false;
     }
-    const char* source =
-        "Transform2D.set(entity, Vec2.new(13,17), Vec2.new(2,3), Vec2.new(), 0); Sprite.set(entity, '/glint-dim2-test-atlas.json', 'f'); AnimatedSprite.set(entity, '/glint-dim2-test-atlas.json', 'a')";
-    if (!gunit_check(
-            "live sprite fixture created",
-            gdim2__test_run_script(ctx->alloc, ctx->script, source, "fixture")
+    const char* source = "Transform2D.set(entity, Vec2.new(13,17), Vec2.new(2,3), Vec2.new(), 0)";
+    return gunit_check(
+        "transform fixture created",
+        gdim2__test_run_script(ctx->alloc, ctx->script, source, "transform")
+    );
+}
+
+static bool gdim2__test_create_reload(gdim2__TestContext* ctx, bool shared) {
+    if (!gdim2__test_create_bindings(ctx, shared)) {
+        return false;
+    }
+    ctx->native_fixtures = true;
+    if (!gdim2__test_write_asset(
+            "glint-dim2-test-atlas.json",
+            "{\"frames\":{\"f\":{\"x\":1,\"w\":4,\"h\":5}},\"animations\":{\"a\":[\"f\"]}}"
         )) {
         return false;
     }
+    if (!gdim2__test_write_asset("glint-dim2-test-atlas.png", "fake png")) {
+        return false;
+    }
+    if (!gunit_check("native fixtures mounted", gvfs_mount(ctx->alloc, ctx->vfs, "/", "."))) {
+        return false;
+    }
 
-    return true;
+    const char* source =
+        "Sprite.set(entity, '/glint-dim2-test-atlas.json', 'f'); "
+        "AnimatedSprite.set(entity, '/glint-dim2-test-atlas.json', 'a')";
+    return gunit_check("live sprite fixture created", gdim2__test_run_script(ctx->alloc, ctx->script, source, "fixture"));
 }
 
 static bool gdim2__test_create_virtual(gdim2__TestContext* ctx) {

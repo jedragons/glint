@@ -20,7 +20,7 @@ static bool gscript_api__test_create(gscript_api__TestContext* context, bool bin
 static void gscript_api__test_free(void* user);
 static bool gscript_api__test_module(gscript_api__TestContext* context);
 
-GUNIT_TEST(runtime_runs_lua_chunk, {
+GUNIT_TEST(runtime_runs_lua_chunk,
     gscript_api__TestContext context = {0};
     gunit_defer(gscript_api__test_free, &context);
     gunit_assert("create test context", gscript_api__test_create(&context, false));
@@ -28,19 +28,17 @@ GUNIT_TEST(runtime_runs_lua_chunk, {
     gunit_assert("run Lua chunk", gscript_lua_run(context.alloc, context.script, source, strlen(source), "test"));
     lua_getglobal(context.lua, "answer");
     gunit_assert("chunk returns expected integer", lua_tointeger(context.lua, -1) == 42);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(runtime_reports_invalid_lua, {
+GUNIT_TEST(runtime_reports_invalid_lua,
     gscript_api__TestContext context = {0};
     gunit_defer(gscript_api__test_free, &context);
     gunit_assert("create test context", gscript_api__test_create(&context, false));
     gunit_assert("invalid Lua rejected", !gscript_lua_run(context.alloc, context.script, "invalid !", 9, "invalid"));
     gunit_assert("Lua error remains on stack", lua_isstring(context.lua, -1) != 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(bound_entity_names_and_lifetime, {
+GUNIT_TEST(bound_entity_names_and_lifetime,
     gscript_api__TestContext context = {0};
     gunit_defer(gscript_api__test_free, &context);
     gunit_assert("create test context", gscript_api__test_create(&context, true));
@@ -52,10 +50,9 @@ GUNIT_TEST(bound_entity_names_and_lifetime, {
         "entity name and lifetime API",
         gscript_lua_run(context.alloc, context.script, source, strlen(source), "spawn")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_callbacks_share_entity_state, {
+GUNIT_TEST(module_callbacks_share_entity_state,
     gscript_api__TestContext context = {0};
     gunit_defer(gscript_api__test_free, &context);
     gunit_assert("create test context", gscript_api__test_create(&context, true));
@@ -70,10 +67,9 @@ GUNIT_TEST(module_callbacks_share_entity_state, {
     );
     lua_getglobal(context.lua, "observed");
     gunit_assert("callback writes expected integer", lua_tointeger(context.lua, -1) == 42);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(module_receives_live_entity_userdata, {
+GUNIT_TEST(module_receives_live_entity_userdata,
     gscript_api__TestContext context = {0};
     gunit_defer(gscript_api__test_free, &context);
     gunit_assert("create test context", gscript_api__test_create(&context, true));
@@ -86,8 +82,7 @@ GUNIT_TEST(module_receives_live_entity_userdata, {
     gunit_assert("entity is alive in Lua", lua_toboolean(context.lua, -1) != 0);
     lua_getglobal(context.lua, "kind");
     gunit_assert("entity is Lua userdata", strcmp(lua_tostring(context.lua, -1), "userdata") == 0);
-    gunit_return();
-})
+)
 
 gunit_main();
 

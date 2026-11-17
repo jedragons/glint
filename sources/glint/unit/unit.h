@@ -82,7 +82,7 @@ static inline void gunit_fail(const char* file, int line, const char* condition,
     } while (0)
 
 /// Drain this test's stack-local callbacks in reverse order, then return directly.
-/// Use inside GUNIT_TEST, while deferred arguments pointing at locals are alive.
+/// Use for an early exit; GUNIT_TEST also calls this automatically at the end.
 #define gunit_return(...) \
     do { \
         while (gunit__defer_count > 0) { \
@@ -125,14 +125,23 @@ static inline void gunit_fail(const char* file, int line, const char* condition,
         } \
     } while (0)
 
-#define GUNIT_TEST(test_name, ...) \
+#ifndef GUNIT_TEST_NAME
+    #define GUNIT_TEST_NAME(name) name
+#endif
+
+// Allow unity runners to scope symbols while retaining the original display name.
+// Pass statements directly, without an enclosing block, so locals remain alive
+// when the automatic gunit_return drains their deferred callbacks.
+#define GUNIT_TEST(test_name, ...) GUNIT_TEST_EXPAND(GUNIT_TEST_NAME(test_name), #test_name, __VA_ARGS__)
+#define GUNIT_TEST_EXPAND(test_name, display_name, ...) GUNIT_TEST_DETAIL(test_name, display_name, __VA_ARGS__)
+#define GUNIT_TEST_DETAIL(test_name, display_name, ...) \
     static void test_##test_name(void) { \
         gunit__Deferred gunit__entries[GUNIT_DEFER_SIZE]; \
         size_t gunit__defer_count = 0; \
         __VA_ARGS__; \
         gunit_return(); \
     } \
-    static gunit_Test gunit_case_##test_name = {test_##test_name, #test_name, NULL}; \
+    static gunit_Test gunit_case_##test_name = {test_##test_name, display_name, NULL}; \
     GUNIT_INITIALIZER(register_##test_name) { \
         gunit_register(&gunit_case_##test_name); \
     }

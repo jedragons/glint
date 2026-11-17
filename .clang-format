@@ -71,3 +71,4 @@ SpacesInSquareBrackets: false
 Standard: Cpp11
 TabWidth: 4
 UseTab: Never
+WhitespaceSensitiveMacros: [GUNIT_TEST]

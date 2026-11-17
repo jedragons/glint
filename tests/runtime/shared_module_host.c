@@ -18,17 +18,16 @@ typedef struct gmod__SharedContext {
 static bool gmod__test_shared_create(gmod__SharedContext* context);
 static void gmod__test_shared_free(void* user);
 
-GUNIT_TEST(shared_module_uses_host_component_storage, {
+GUNIT_TEST(shared_module_uses_host_component_storage,
     gmod__SharedContext context = {0};
     gunit_defer(gmod__test_shared_free, &context);
     gunit_assert("shared create", gmod__test_shared_create(&context));
     gunit_assert("plugin registers host component", context.component != 0);
     gunit_assert("plugin stores component in host world", gecs_Component_count(context.world, context.component) == 1);
     gunit_assert("plugin module loads", gmod_Modules_load(context.alloc, context.modules));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shared_module_rejects_incompatible_registration, {
+GUNIT_TEST(shared_module_rejects_incompatible_registration,
     gmod__SharedContext context = {0};
     gunit_defer(gmod__test_shared_free, &context);
     gunit_assert("shared create", gmod__test_shared_create(&context));
@@ -36,10 +35,9 @@ GUNIT_TEST(shared_module_rejects_incompatible_registration, {
         "host cannot replace plugin destructor",
         gecs_Component_register(context.world, "test.dll.counter.v1", sizeof(int*), NULL) == 0
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shared_module_destructor_outlives_module_manager, {
+GUNIT_TEST(shared_module_destructor_outlives_module_manager,
     gmod__SharedContext context = {0};
     gunit_defer(gmod__test_shared_free, &context);
     gunit_assert("shared create", gmod__test_shared_create(&context));
@@ -50,8 +48,7 @@ GUNIT_TEST(shared_module_destructor_outlives_module_manager, {
     gecs_World_free(context.world);
     context.world = NULL;
     gunit_assert("world teardown invokes plugin destructor once", context.destroyed == 1);
-    gunit_return();
-})
+)
 
 gunit_main(if (gunit_argc != 2) {
     fprintf(stderr, "usage: %s SHARED_MODULE\n", gunit_argv[0]);

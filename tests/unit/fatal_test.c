@@ -2,12 +2,11 @@
 
 static void gunit__test_fatal_record(void* user);
 
-GUNIT_TEST(fatal_failure_runs_cleanup, {
+GUNIT_TEST(fatal_failure_runs_cleanup,
     int value = 9;
     gunit_defer(gunit__test_fatal_record, &value);
     gunit_require("intentional fatal failure", false);
-    gunit_return();
-})
+)
 
 gunit_main();
 

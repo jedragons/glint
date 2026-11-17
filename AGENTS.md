@@ -138,9 +138,15 @@ The configure recipe invokes `emcmake` automatically. Native tests are disabled.
 Use `just test <preset>` after building. Every non-Emscripten preset above has
 a matching test preset, including `-debug` and `-release` variants. MinGW
 x86_64 cross builds discover Wine automatically on Linux and macOS, with its
-graphical crash debugger disabled. ARM64 cross
-tests require an explicitly configured compatible runner; Wine discovery does
-not imply ARM64 support. Native Windows tests run directly.
+graphical crash debugger disabled. Start a persistent server once with
+`wineserver -p` in the same `WINEPREFIX` used by the tests. If a persistent
+server is already running for that prefix, run `just test` for the preset
+directly. On the development Mac, the x86_64 suite takes about 4 seconds
+with a persistent server and has taken about 140 seconds with repeated Wine
+startup between CTest processes.
+
+ARM64 cross tests require an explicitly configured compatible runner.
+Native Windows tests run directly.
 
 ```sh
 just test default
@@ -152,6 +158,7 @@ just test windows-msvc-x86_64-debug
 
 just configure windows-mingw-x86_64
 just build windows-mingw-x86_64
+wineserver -p
 just test windows-mingw-x86_64
 ```
 

@@ -69,7 +69,7 @@ static bool glint__test_lifecycle_create(glint__GameContext* context);
 static void glint__test_context_free(void* user);
 static gecs_Entity glint__test_timer_entity(glint__GameContext* context);
 
-GUNIT_TEST(headless_audio_import, {
+GUNIT_TEST(headless_audio_import,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gmod_Module modules[] = {gaudio_module(), gaudio_module()};
@@ -83,10 +83,9 @@ GUNIT_TEST(headless_audio_import, {
         service != NULL && !service->device.open && service->module_owned
     );
     gunit_assert("headless game steps", glint_frame(context.alloc, context.game, 0.1f));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(headless_dim2_import, {
+GUNIT_TEST(headless_dim2_import,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gmod_Module modules[] = {gdim2_module(), gdim2_module(), gtypes_module(), gtime_module()};
@@ -97,19 +96,17 @@ GUNIT_TEST(headless_dim2_import, {
     gdim2_Service* service = gecs_context_get(world, GECS_CONTEXT(world, gdim2_Service));
     gunit_assert("headless 2D module loaded without graphics", service != NULL && service->instance == NULL);
     gunit_assert("headless game steps", glint_frame(context.alloc, context.game, 0.1f));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(game_imports_and_loads_custom_module, {
+GUNIT_TEST(game_imports_and_loads_custom_module,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("lifecycle create", glint__test_lifecycle_create(&context));
     gunit_assert("custom module imported once", context.counts.imported == 1);
     gunit_assert("custom module loaded once", context.counts.load == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(game_setup_creates_repeating_timer, {
+GUNIT_TEST(game_setup_creates_repeating_timer,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("lifecycle create", glint__test_lifecycle_create(&context));
@@ -121,10 +118,9 @@ GUNIT_TEST(game_setup_creates_repeating_timer, {
         "setup configures repeating timer",
         timer != NULL && timer->duration == 2.0f && timer->mode == GTIME_TIMER_REPEATING
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(game_frame_advances_timer, {
+GUNIT_TEST(game_frame_advances_timer,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("lifecycle create", glint__test_lifecycle_create(&context));
@@ -137,10 +133,9 @@ GUNIT_TEST(game_frame_advances_timer, {
         "timer advances with frame delta",
         timer != NULL && timer->is_finished && timer->times_finished_this_tick == 1
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(game_frames_update_and_render_modules, {
+GUNIT_TEST(game_frames_update_and_render_modules,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("lifecycle create", glint__test_lifecycle_create(&context));
@@ -149,20 +144,18 @@ GUNIT_TEST(game_frames_update_and_render_modules, {
     gunit_assert("run second frame", glint_frame(context.alloc, context.game, 0.1f));
     gunit_assert("update and render run again", context.counts.update == 2 && context.counts.render == 2);
     gunit_assert("successful frame has no error", strcmp(glint_error(context.game), "") == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(game_shutdown_preserves_context_dependencies, {
+GUNIT_TEST(game_shutdown_preserves_context_dependencies,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("lifecycle create", glint__test_lifecycle_create(&context));
     glint__test_context_free(&context);
     gunit_assert("custom module unloaded once", context.counts.unload == 1);
     gunit_assert("lifetime context destroyed while dependencies alive", context.counts.context_destroyed);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(default_mount_snapshots_working_directory, {
+GUNIT_TEST(default_mount_snapshots_working_directory,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     context.alloc = galloc_malloc_allocator();
@@ -176,10 +169,9 @@ GUNIT_TEST(default_mount_snapshots_working_directory, {
     context.source = gvfs_read(context.alloc, glint_vfs(context.game), "/game.lua", &size);
     gunit_assert("default mount stays anchored after chdir", context.source != NULL && size > 0);
     gunit_assert("restore working directory", GLINT_TEST_CHDIR(context.original_directory) == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(entity_destroy_runs_callback_once, {
+GUNIT_TEST(entity_destroy_runs_callback_once,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint_Config config = {.asset_root = glint__test_asset_root, .initial_script = "/game.lua", .headless = true};
@@ -203,10 +195,9 @@ GUNIT_TEST(entity_destroy_runs_callback_once, {
         "destruction callback not repeated",
         gscript_lua_run(context.alloc, script, verify, strlen(verify), "verify destroy")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(shutdown_finalizer_cannot_spawn_entities, {
+GUNIT_TEST(shutdown_finalizer_cannot_spawn_entities,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint_Config config = {.asset_root = glint__test_asset_root, .initial_script = "/game.lua", .headless = true};
@@ -220,10 +211,9 @@ GUNIT_TEST(shutdown_finalizer_cannot_spawn_entities, {
     gunit_assert("register Lua finalizer", gscript_lua_run(context.alloc, script, source, strlen(source), "finalizer"));
     glint__test_context_free(&context);
     gunit_assert("finalizer cannot create entities during shutdown", context.finalizer_result == -1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(game_destroy_retries_module_veto, {
+GUNIT_TEST(game_destroy_retries_module_veto,
     glint__GameContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     context.module = (gmod_Module) {
@@ -235,16 +225,15 @@ GUNIT_TEST(game_destroy_retries_module_veto, {
     glint_Config config =
         {.asset_root = glint__test_asset_root, .headless = true, .modules = &context.module, .module_count = 1};
     gunit_assert("context create", glint__test_context_create(&context, &config));
-    gunit_assert("veto reports deferred destruction", !glint_destroy(context.alloc, context.game));
+    bool destroyed = glint_destroy(context.alloc, context.game);
+    if (destroyed) context.game = NULL;
+    gunit_assert("veto reports deferred destruction", !destroyed);
     gunit_assert("game stays usable", glint_frame(context.alloc, context.game, 0.1f));
     context.unload_allowed = true;
-    bool destroyed = glint_destroy(context.alloc, context.game);
-    if (destroyed) {
-        context.game = NULL;
-    }
+    destroyed = glint_destroy(context.alloc, context.game);
+    if (destroyed) context.game = NULL;
     gunit_assert("destruction succeeds on retry", destroyed);
-    gunit_return();
-})
+)
 
 gunit_main(if (gunit_argc != 2) {
     fprintf(stderr, "usage: %s ASSET_DIRECTORY\n", gunit_argv[0]);

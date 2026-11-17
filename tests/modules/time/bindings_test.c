@@ -34,7 +34,7 @@ static bool gtime__test_create(gtime__TestContext* context, bool rebind);
 static void gtime__test_free(void* user);
 static bool gtime__test_run(gtime__TestContext* context, const char* source);
 
-GUNIT_TEST(lua_repeating_timer_uses_host_delta, {
+GUNIT_TEST(lua_repeating_timer_uses_host_delta,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, false));
@@ -45,10 +45,9 @@ GUNIT_TEST(lua_repeating_timer_uses_host_delta, {
             "Timer.set(e, 2, TimerMode.repeating); assert(Timer.has(e)); local t=Timer.get(e); assert(t:tick().elapsed==.5); assert(not t:tick().is_finished); assert(t:tick(1).is_finished and t.times_finished_this_tick==1); assert(t:tick(.5).elapsed==.5)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_timer_pause_preserves_elapsed, {
+GUNIT_TEST(lua_timer_pause_preserves_elapsed,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, false));
@@ -59,10 +58,9 @@ GUNIT_TEST(lua_timer_pause_preserves_elapsed, {
             "local t=Timer.set(e, 2, TimerMode.repeating); t:tick(.5); t:pause():tick(3); assert(t.is_paused and t.elapsed==.5)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_timer_mutable_progress_properties, {
+GUNIT_TEST(lua_timer_mutable_progress_properties,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, false));
@@ -73,10 +71,9 @@ GUNIT_TEST(lua_timer_mutable_progress_properties, {
             "local t=Timer.set(e, 2, TimerMode.repeating); t:pause():unpause(); t.elapsed=1; t.duration=4; t.mode=TimerMode.once; assert(t.remaining==3 and t.fraction==.25)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_stopwatch_pause_and_resume, {
+GUNIT_TEST(lua_stopwatch_pause_and_resume,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, false));
@@ -87,10 +84,9 @@ GUNIT_TEST(lua_stopwatch_pause_and_resume, {
             "local sw=Stopwatch.set(e); assert(sw:tick().elapsed==.5); sw:pause():tick(2); assert(sw:is_paused() and sw.elapsed==.5); sw:unpause():tick(.5); assert(sw.elapsed==1)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_stopwatch_component_copies_value, {
+GUNIT_TEST(lua_stopwatch_component_copies_value,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, false));
@@ -101,10 +97,9 @@ GUNIT_TEST(lua_stopwatch_component_copies_value, {
             "local copy=Stopwatch.new(); copy.elapsed=7; Stopwatch.set(e, copy); assert(Stopwatch.get(e).elapsed==7)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_stopwatch_removed_reference_is_invalid, {
+GUNIT_TEST(lua_stopwatch_removed_reference_is_invalid,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, false));
@@ -115,10 +110,9 @@ GUNIT_TEST(lua_stopwatch_removed_reference_is_invalid, {
             "local sw=Stopwatch.set(e); Stopwatch.remove(e); assert(not Stopwatch.has(e)); assert(not pcall(function() return sw.elapsed end))"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_timer_removed_reference_is_invalid, {
+GUNIT_TEST(lua_timer_removed_reference_is_invalid,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, false));
@@ -129,10 +123,9 @@ GUNIT_TEST(lua_timer_removed_reference_is_invalid, {
             "local t=Timer.set(e, 2, TimerMode.once); Timer.remove(e); assert(not Timer.has(e)); assert(not pcall(function() return t.elapsed end))"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_rebind_old_types_retain_world, {
+GUNIT_TEST(lua_rebind_old_types_retain_world,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, true));
@@ -140,10 +133,9 @@ GUNIT_TEST(lua_rebind_old_types_retain_world, {
         "test helper succeeds",
         gtime__test_run(&context, "assert(old_timer.get(e1).elapsed==0 and old_stopwatch.get(e1).elapsed==0)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_rebind_retained_handles_keep_original_clock, {
+GUNIT_TEST(lua_rebind_retained_handles_keep_original_clock,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, true));
@@ -154,10 +146,9 @@ GUNIT_TEST(lua_rebind_retained_handles_keep_original_clock, {
             "old_timer=nil; old_stopwatch=nil; collectgarbage('collect'); assert(t:tick().elapsed==.5 and s:tick().elapsed==.5); assert(tg.elapsed==.5 and sg.elapsed==.5)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_rebind_standalone_values_keep_original_clock, {
+GUNIT_TEST(lua_rebind_standalone_values_keep_original_clock,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, true));
@@ -165,10 +156,9 @@ GUNIT_TEST(lua_rebind_standalone_values_keep_original_clock, {
         "test helper succeeds",
         gtime__test_run(&context, "assert(standalone_t:tick().elapsed==.5 and standalone_s:tick().elapsed==.5)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_rebind_copies_to_new_world_clock, {
+GUNIT_TEST(lua_rebind_copies_to_new_world_clock,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, true));
@@ -179,10 +169,9 @@ GUNIT_TEST(lua_rebind_copies_to_new_world_clock, {
             "t:tick(); s:tick(); local nt=Timer.set(e2,t); local ns=Stopwatch.set(e2,s); assert(nt:tick().elapsed==.75 and ns:tick().elapsed==.75); assert(t.elapsed==.5 and s.elapsed==.5)"
         )
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_rebind_old_handles_still_mutate_original_components, {
+GUNIT_TEST(lua_rebind_old_handles_still_mutate_original_components,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, true));
@@ -190,10 +179,9 @@ GUNIT_TEST(lua_rebind_old_handles_still_mutate_original_components, {
         "test helper succeeds",
         gtime__test_run(&context, "t.elapsed=2; s.elapsed=3; assert(tg.elapsed==2 and sg.elapsed==3)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(lua_rebind_does_not_alias_unrelated_components, {
+GUNIT_TEST(lua_rebind_does_not_alias_unrelated_components,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
     gunit_assert("create test context", gtime__test_create(&context, true));
@@ -214,8 +202,7 @@ GUNIT_TEST(lua_rebind_does_not_alias_unrelated_components, {
         *(char*)gecs_Component_get(context.e1, context.small1) == 42
             && *(char*)gecs_Component_get(context.e1, context.small2) == 42
     );
-    gunit_return();
-})
+)
 
 gunit_main();
 

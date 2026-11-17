@@ -31,7 +31,7 @@ static void gscript__test_free(void* user);
 static bool gscript__test_on_destroy(gecs_Entity handle, void* user);
 static bool gscript__test_run(galloc_Allocator alloc, gscript_lua_Runtime* script, const char* code);
 
-GUNIT_TEST(entity_handles_share_lua_fields, {
+GUNIT_TEST(entity_handles_share_lua_fields,
     gscript__TestContext context = {0};
     gunit_defer(gscript__test_free, &context);
     gunit_assert("create test context", gscript__test_create(&context));
@@ -45,10 +45,9 @@ GUNIT_TEST(entity_handles_share_lua_fields, {
         "test helper succeeds",
         gscript__test_run(context.alloc, context.script, "assert(other.number == 42 and other.data[2] == 5)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(entity_destroy_veto_preserves_entity, {
+GUNIT_TEST(entity_destroy_veto_preserves_entity,
     gscript__TestContext context = {0};
     gunit_defer(gscript__test_free, &context);
     gunit_assert("create test context", gscript__test_create(&context));
@@ -62,10 +61,9 @@ GUNIT_TEST(entity_destroy_veto_preserves_entity, {
         )
     );
     gunit_assert("destroy veto leaves entity alive", context.destroy.calls == 1 && gecs_Entity_alive(context.entity));
-    gunit_return();
-})
+)
 
-GUNIT_TEST(entity_destroy_reentry_invalidates_all_handles, {
+GUNIT_TEST(entity_destroy_reentry_invalidates_all_handles,
     gscript__TestContext context = {0};
     gunit_defer(gscript__test_free, &context);
     gunit_assert("create test context", gscript__test_create(&context));
@@ -85,10 +83,9 @@ GUNIT_TEST(entity_destroy_reentry_invalidates_all_handles, {
         "allowed destruction removes entity",
         context.destroy.calls == 1 && !gecs_Entity_alive(context.entity)
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(entity_slots_do_not_retain_destroyed_lua_fields, {
+GUNIT_TEST(entity_slots_do_not_retain_destroyed_lua_fields,
     gscript__TestContext context = {0};
     gunit_defer(gscript__test_free, &context);
     gunit_assert("create test context", gscript__test_create(&context));
@@ -104,10 +101,9 @@ GUNIT_TEST(entity_slots_do_not_retain_destroyed_lua_fields, {
         "test helper succeeds",
         gscript__test_run(context.alloc, context.script, "assert(next_entity.number == nil)")
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(native_destroy_forgets_lua_handle, {
+GUNIT_TEST(native_destroy_forgets_lua_handle,
     gscript__TestContext context = {0};
     gunit_defer(gscript__test_free, &context);
     gunit_assert("create test context", gscript__test_create(&context));
@@ -121,8 +117,7 @@ GUNIT_TEST(native_destroy_forgets_lua_handle, {
             "assert(not e:valid()); assert(not pcall(function() return e.number end))"
         )
     );
-    gunit_return();
-})
+)
 
 gunit_main();
 

@@ -36,7 +36,7 @@ static void gwatch__test_context_free(void* user);
 static bool gwatch__test_write_file(gwatch__TestContext* context, const char* contents);
 static bool gwatch__test_failed_registration(gwatch__TestContext* context, size_t fail_call);
 
-GUNIT_TEST(duplicate_registration_is_ignored, {
+GUNIT_TEST(duplicate_registration_is_ignored,
     gwatch__TestContext context = {0};
     gunit_defer(gwatch__test_context_free, &context);
     gunit_assert("create watcher fixture", gwatch__test_context_create(&context));
@@ -44,29 +44,26 @@ GUNIT_TEST(duplicate_registration_is_ignored, {
     gunit_assert("write watched fixture", gwatch__test_write_file(&context, "created"));
     gwatch_poll(context.watcher, gwatch__test_on_change, &context);
     gunit_assert("duplicate registration emits only one change", context.changes == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(unchanged_missing_file_emits_nothing, {
+GUNIT_TEST(unchanged_missing_file_emits_nothing,
     gwatch__TestContext context = {0};
     gunit_defer(gwatch__test_context_free, &context);
     gunit_assert("create watcher fixture", gwatch__test_context_create(&context));
     gwatch_poll(context.watcher, gwatch__test_on_change, &context);
     gunit_assert("missing file emits nothing", context.changes == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(file_creation_emits_change, {
+GUNIT_TEST(file_creation_emits_change,
     gwatch__TestContext context = {0};
     gunit_defer(gwatch__test_context_free, &context);
     gunit_assert("create watcher fixture", gwatch__test_context_create(&context));
     gunit_assert("write watched fixture", gwatch__test_write_file(&context, "first"));
     gwatch_poll(context.watcher, gwatch__test_on_change, &context);
     gunit_assert("file creation emits one change", context.changes == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(unchanged_existing_file_emits_nothing, {
+GUNIT_TEST(unchanged_existing_file_emits_nothing,
     gwatch__TestContext context = {0};
     gunit_defer(gwatch__test_context_free, &context);
     gunit_assert("create watcher fixture", gwatch__test_context_create(&context));
@@ -75,10 +72,9 @@ GUNIT_TEST(unchanged_existing_file_emits_nothing, {
     context.changes = 0;
     gwatch_poll(context.watcher, gwatch__test_on_change, &context);
     gunit_assert("unchanged existing file emits nothing", context.changes == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(file_rewrite_emits_change, {
+GUNIT_TEST(file_rewrite_emits_change,
     gwatch__TestContext context = {0};
     gunit_defer(gwatch__test_context_free, &context);
     gunit_assert("create watcher fixture", gwatch__test_context_create(&context));
@@ -89,10 +85,9 @@ GUNIT_TEST(file_rewrite_emits_change, {
     gunit_assert("write watched fixture", gwatch__test_write_file(&context, "longer contents"));
     gwatch_poll(context.watcher, gwatch__test_on_change, &context);
     gunit_assert("rewrite emits one change", context.changes == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(file_deletion_emits_change, {
+GUNIT_TEST(file_deletion_emits_change,
     gwatch__TestContext context = {0};
     gunit_defer(gwatch__test_context_free, &context);
     gunit_assert("create watcher fixture", gwatch__test_context_create(&context));
@@ -102,10 +97,9 @@ GUNIT_TEST(file_deletion_emits_change, {
     gunit_assert("remove watched fixture", remove(context.path) == 0);
     gwatch_poll(context.watcher, gwatch__test_on_change, &context);
     gunit_assert("deletion emits one change", context.changes == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(file_reappearance_emits_change, {
+GUNIT_TEST(file_reappearance_emits_change,
     gwatch__TestContext context = {0};
     gunit_defer(gwatch__test_context_free, &context);
     gunit_assert("create watcher fixture", gwatch__test_context_create(&context));
@@ -117,19 +111,17 @@ GUNIT_TEST(file_reappearance_emits_change, {
     gunit_assert("write watched fixture", gwatch__test_write_file(&context, "restored"));
     gwatch_poll(context.watcher, gwatch__test_on_change, &context);
     gunit_assert("reappearance emits one change", context.changes == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(watcher_destroy_releases_allocations, {
+GUNIT_TEST(watcher_destroy_releases_allocations,
     gwatch__TestContext context = {0};
     gunit_defer(gwatch__test_context_free, &context);
     gunit_assert("create watcher fixture", gwatch__test_context_create(&context));
     gwatch__test_context_free(&context);
     gunit_assert("destroy releases all watcher allocations", context.state.live == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(watcher_allocation_failures_allow_retry, {
+GUNIT_TEST(watcher_allocation_failures_allow_retry,
     gwatch__TestContext context = {0};
     gunit_defer(gwatch__test_context_free, &context);
     gunit_assert("create watcher fixture", gwatch__test_context_create(&context));
@@ -141,8 +133,7 @@ GUNIT_TEST(watcher_allocation_failures_allow_retry, {
         context = (gwatch__TestContext) {0};
         gunit_assert("check allocation denial and retry", gwatch__test_failed_registration(&context, fail_call));
     }
-    gunit_return();
-})
+)
 
 gunit_main();
 

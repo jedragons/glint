@@ -1,31 +1,25 @@
-// Link this driver against either actual example entry point, compiled with
-// -Dmain=example_entry. No real window, browser or graphics backend needed.
+// Run an actual example entry point through a stub game lifecycle.
 #include <glint/config.h>
 #include <glint/glint.h>
 #include <glint/unit/unit.h>
+
+#include "./game.h"
 
 #include <stddef.h>
 #include <string.h>
 
 int example_entry(int argc, char** argv);
 
-struct glint_Game {
-    bool alive;
-};
-
 typedef struct glint__EntryContext {
     glint_Game game;
     int allocator_state;
     size_t destroys;
-    size_t frames;
     bool fail_create;
-    bool fail_frame;
+    bool fail_run;
 #if GLINT_PLATFORM_EMSCRIPTEN
     glint_RunEndFn end;
     galloc_Allocator alloc;
     void* end_user;
-    size_t cancellations;
-    bool should_close;
 #endif
 } glint__EntryContext;
 
@@ -33,9 +27,6 @@ static glint__EntryContext* glint__test_context;
 
 static void glint__test_context_create(glint__EntryContext* context);
 static void glint__test_context_free(void* user);
-#if GLINT_PLATFORM_EMSCRIPTEN
-static bool glint__test_tick(void);
-#endif
 
 galloc_Allocator galloc_malloc_allocator(void) {
     return (galloc_Allocator) {.data = &glint__test_context->allocator_state};
@@ -77,25 +68,11 @@ bool glint_destroy(galloc_Allocator alloc, glint_Game* value) {
     return true;
 }
 
-bool glint_frame(galloc_Allocator alloc, glint_Game* value, float dt) {
-    if (!gunit_check("frame receives allocator", alloc.data == &glint__test_context->allocator_state)) {
-        return false;
-    }
-    if (!gunit_check(
-            "frame receives live game and delta",
-            value == &glint__test_context->game && value->alive && dt > 0
-        )) {
-        return false;
-    }
-    glint__test_context->frames += 1;
-    return !glint__test_context->fail_frame;
-}
-
 const char* glint_error(const glint_Game* value) {
     if (!gunit_check("error receives live game", value == &glint__test_context->game && value->alive)) {
         return "invalid game";
     }
-    return "test frame error";
+    return "test run error";
 }
 
 bool glint_run_with_completion(galloc_Allocator alloc, glint_Game* game, glint_RunEndFn end, void* user) {
@@ -111,103 +88,77 @@ bool glint_run_with_completion(galloc_Allocator alloc, glint_Game* game, glint_R
     glint__test_context->end_user = user;
     return true;
 #else
-    bool ok = glint_frame(alloc, game, 1.0f);
+    bool ok = !glint__test_context->fail_run;
     end(alloc, game, ok, user);
     return ok;
 #endif
 }
 
-GUNIT_TEST(entry_creation_failure, {
+#ifndef GLINT_TEST_EXAMPLE_SMOKE
+GUNIT_TEST(entry_creation_failure,
     glint__EntryContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint__test_context_create(&context);
     context.fail_create = true;
     gunit_assert("creation failure returns error", example_entry(0, NULL) == 1);
     gunit_assert("failed creation does not destroy game", context.destroys == 0);
-    gunit_return();
-})
+)
+#endif
 
 #if GLINT_PLATFORM_EMSCRIPTEN
-GUNIT_TEST(web_entry_schedules_without_running_frames, {
+GUNIT_TEST(web_entry_schedules_without_running_frames,
     glint__EntryContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint__test_context_create(&context);
     gunit_assert("web entry schedules successfully", example_entry(0, NULL) == 0);
     gunit_assert("game remains alive and scheduled", context.end != NULL && context.game.alive);
-    gunit_assert("entry does not run or destroy game", context.destroys == 0 && context.frames == 0);
-    gunit_return();
-})
+    gunit_assert("entry defers game destruction", context.destroys == 0);
+)
 
-GUNIT_TEST(web_entry_renders_scheduled_frames, {
+GUNIT_TEST(web_entry_success_completion_destroys_game,
     glint__EntryContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint__test_context_create(&context);
     gunit_assert("web entry schedules", example_entry(0, NULL) == 0);
-    gunit_assert("tick", glint__test_tick());
-    gunit_assert("tick", glint__test_tick());
-    gunit_assert(
-        "scheduled frames keep game alive",
-        context.frames == 2 && context.game.alive && context.destroys == 0
-    );
-    gunit_return();
-})
+    gunit_assert("completion registered", context.end != NULL);
+    context.end(context.alloc, &context.game, true, context.end_user);
+    gunit_assert("successful completion destroys game", !context.game.alive && context.destroys == 1);
+)
 
-GUNIT_TEST(web_entry_window_close_destroys_game, {
+GUNIT_TEST(web_entry_failure_completion_destroys_game,
     glint__EntryContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint__test_context_create(&context);
     gunit_assert("web entry schedules", example_entry(0, NULL) == 0);
-    gunit_assert("tick", glint__test_tick());
-    gunit_assert("tick", glint__test_tick());
-    context.should_close = true;
-    gunit_assert("tick", glint__test_tick());
-    gunit_assert("window close cancels scheduling", context.end == NULL && context.cancellations == 1);
-    gunit_assert(
-        "window close destroys game without another frame",
-        !context.game.alive && context.destroys == 1 && context.frames == 2
-    );
-    gunit_return();
-})
-
-GUNIT_TEST(web_entry_frame_failure_destroys_game, {
-    glint__EntryContext context = {0};
-    gunit_defer(glint__test_context_free, &context);
-    glint__test_context_create(&context);
-    context.fail_frame = true;
-    gunit_assert(
-        "web entry schedules before frame fails",
-        example_entry(0, NULL) == 0 && context.end != NULL && context.game.alive
-    );
-    gunit_assert("tick", glint__test_tick());
-    gunit_assert("failed frame cancels scheduling", context.end == NULL && context.cancellations == 1);
-    gunit_assert("failed frame destroys game", !context.game.alive && context.destroys == 1 && context.frames == 1);
-    gunit_return();
-})
+    gunit_assert("completion registered", context.end != NULL);
+    context.end(context.alloc, &context.game, false, context.end_user);
+    gunit_assert("failed completion destroys game", !context.game.alive && context.destroys == 1);
+)
 #else
-GUNIT_TEST(native_entry_completes_and_destroys_game, {
+GUNIT_TEST(native_entry_completes_and_destroys_game,
     glint__EntryContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint__test_context_create(&context);
     gunit_assert("native entry succeeds", example_entry(0, NULL) == 0);
     gunit_assert(
-        "native entry renders and destroys game",
-        !context.game.alive && context.destroys == 1 && context.frames == 1
+        "native entry completes and destroys game",
+        !context.game.alive && context.destroys == 1
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(native_entry_frame_failure_destroys_game, {
+#ifndef GLINT_TEST_EXAMPLE_SMOKE
+GUNIT_TEST(native_entry_run_failure_destroys_game,
     glint__EntryContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint__test_context_create(&context);
-    context.fail_frame = true;
-    gunit_assert("failed native frame returns error", example_entry(0, NULL) == 1);
+    context.fail_run = true;
+    gunit_assert("failed native run returns error", example_entry(0, NULL) == 1);
     gunit_assert(
-        "failed native frame destroys game",
-        !context.game.alive && context.destroys == 1 && context.frames == 1
+        "failed native run destroys game",
+        !context.game.alive && context.destroys == 1
     );
-    gunit_return();
-})
+)
+#endif
 #endif
 
 gunit_main();
@@ -228,21 +179,3 @@ static void glint__test_context_free(void* user) {
     }
     glint__test_context = NULL;
 }
-
-#if GLINT_PLATFORM_EMSCRIPTEN
-static bool glint__test_tick(void) {
-    glint__EntryContext* context = glint__test_context;
-    if (!gunit_check("loop is scheduled", context->end != NULL)) {
-        return false;
-    }
-    bool ok = context->should_close || glint_frame(context->alloc, &context->game, 1.0f);
-    if (context->should_close || !ok) {
-        glint_RunEndFn end = context->end;
-        context->end = NULL;
-        context->cancellations += 1;
-        end(context->alloc, &context->game, ok, context->end_user);
-    }
-
-    return true;
-}
-#endif

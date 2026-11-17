@@ -81,7 +81,9 @@ static void glint__test_record_completion(galloc_Allocator alloc, glint_Game* ga
 #ifdef GLINT_TEST_WEB
 void emscripten_set_main_loop_arg(void (*callback)(void*), void* arg, int fps, int simulate_infinite_loop) {
     (void)fps;
-    (void)simulate_infinite_loop;
+    if (!gunit_check("browser loop registration returns to its caller", simulate_infinite_loop == 0)) {
+        return;
+    }
     if (!gunit_check("browser-driven asynchronous loop", glint__test_state->scheduled_frame == NULL)) {
         return;
     }
@@ -234,7 +236,7 @@ void DrawTexturePro(Texture2D texture, Rectangle source, Rectangle dest, Vector2
 }
 
 #ifndef GLINT_TEST_WEB
-GUNIT_TEST(window_configuration, {
+GUNIT_TEST(window_configuration,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("window create", glint__test_window_create(&context));
@@ -248,10 +250,9 @@ GUNIT_TEST(window_configuration, {
         (context.state.config_flags & FLAG_VSYNC_HINT) != 0 && (context.state.config_flags & FLAG_WINDOW_RESIZABLE) != 0
     );
     gunit_assert("frame rate and log level applied", context.state.target_fps == 30 && glog_get_level() == GLOG_ERROR);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(window_audio_service, {
+GUNIT_TEST(window_audio_service,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("window create", glint__test_window_create(&context));
@@ -262,10 +263,9 @@ GUNIT_TEST(window_audio_service, {
         audio != NULL && audio->module_owned && gaudio_Device_ready(&audio->device)
     );
     gunit_assert("audio device opened once", context.state.audio_opens == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(window_frame_renders_once, {
+GUNIT_TEST(window_frame_renders_once,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("window create", glint__test_window_create(&context));
@@ -274,10 +274,9 @@ GUNIT_TEST(window_frame_renders_once, {
         "begin clear and end drawing",
         context.state.begins == 1 && context.state.ends == 1 && context.state.clears == 1
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(native_loop_renders_until_close, {
+GUNIT_TEST(native_loop_renders_until_close,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("window create", glint__test_window_create(&context));
@@ -286,10 +285,9 @@ GUNIT_TEST(native_loop_renders_until_close, {
         "loop renders until close",
         context.state.begins == 3 && context.state.ends == 3 && context.state.polls == 4
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(window_shutdown_closes_audio_first, {
+GUNIT_TEST(window_shutdown_closes_audio_first,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("window create", glint__test_window_create(&context));
@@ -300,11 +298,10 @@ GUNIT_TEST(window_shutdown_closes_audio_first, {
         context.state.audio_closes == 1 && context.state.audio_closed_with_window
     );
     gunit_assert("window closes once", context.state.close_calls == 1 && !context.state.window_ready);
-    gunit_return();
-})
+)
 
 #else
-GUNIT_TEST(web_loop_normal_completion, {
+GUNIT_TEST(web_loop_normal_completion,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("web create", glint__test_web_create(&context));
@@ -319,10 +316,9 @@ GUNIT_TEST(web_loop_normal_completion, {
         "completion destroys game",
         context.completed && context.game == NULL && context.state.close_calls == 1
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(web_destroy_cancels_without_completion, {
+GUNIT_TEST(web_destroy_cancels_without_completion,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("web create", glint__test_web_create(&context));
@@ -337,10 +333,9 @@ GUNIT_TEST(web_destroy_cancels_without_completion, {
     context.game = NULL;
     gunit_assert("destroy cancels loop", context.state.scheduled_frame == NULL && context.state.cancellations == 1);
     gunit_assert("destroy never invokes completion", !context.completed);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(web_loop_failure_completion, {
+GUNIT_TEST(web_loop_failure_completion,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gmod_Module failure = {GMOD_INIT, .name = "failure", .update = glint__test_fail_frame};
@@ -355,10 +350,9 @@ GUNIT_TEST(web_loop_failure_completion, {
         "failure completes and destroys game",
         context.completed && context.game == NULL && context.state.close_calls == 1
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(web_loop_schedules_without_blocking, {
+GUNIT_TEST(web_loop_schedules_without_blocking,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("web create", glint__test_web_create(&context));
@@ -369,10 +363,9 @@ GUNIT_TEST(web_loop_schedules_without_blocking, {
     gunit_assert("duplicate scheduling rejected", !glint_run(context.alloc, context.game));
     gunit_assert("browser tick", glint__test_browser_tick());
     gunit_assert("scheduled frame draws", context.state.begins == 1 && context.state.ends == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(web_loop_preserves_allocator_state, {
+GUNIT_TEST(web_loop_preserves_allocator_state,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     context.alloc = galloc_malloc_allocator();
@@ -384,10 +377,9 @@ GUNIT_TEST(web_loop_preserves_allocator_state, {
     gunit_assert("schedule allocator game", glint_run(context.alloc, context.game));
     gunit_assert("browser tick", glint__test_browser_tick());
     gunit_assert("allocator check ran in scheduled frame", context.state.begins == 1 && context.state.ends == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(web_window_close_cancels_without_destroying, {
+GUNIT_TEST(web_window_close_cancels_without_destroying,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("web create", glint__test_web_create(&context));
@@ -400,10 +392,9 @@ GUNIT_TEST(web_window_close_cancels_without_destroying, {
         context.state.scheduled_frame == NULL && context.state.cancellations == 1
     );
     gunit_assert("window close does not destroy game", context.state.close_calls == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(web_loop_restart_can_be_destroyed, {
+GUNIT_TEST(web_loop_restart_can_be_destroyed,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     gunit_assert("web create", glint__test_web_create(&context));
@@ -417,10 +408,9 @@ GUNIT_TEST(web_loop_restart_can_be_destroyed, {
         "destroy cancels before closing",
         context.state.scheduled_frame == NULL && context.state.cancellations == 2 && context.state.close_calls == 1
     );
-    gunit_return();
-})
+)
 
-GUNIT_TEST(web_script_error_keeps_loop_running, {
+GUNIT_TEST(web_script_error_keeps_loop_running,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint_Config config = {.asset_root = glint__test_asset_root, .initial_script = "/game.lua"};
@@ -436,12 +426,12 @@ GUNIT_TEST(web_script_error_keeps_loop_running, {
     );
     glint__test_context_free(&context);
     gunit_assert("destroy cancels loop", context.state.cancellations == 1 && context.state.close_calls == 1);
-    gunit_return();
-})
+)
 
 #endif
 
-GUNIT_TEST(headless_game_skips_window_configuration, {
+#ifdef GLINT_TEST_PLATFORM
+GUNIT_TEST(headless_game_skips_window_configuration,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint_Config config =
@@ -452,10 +442,9 @@ GUNIT_TEST(headless_game_skips_window_configuration, {
         context.state.init_width == 0 && context.state.config_flags == 0 && context.state.target_fps == 0
     );
     gunit_assert("headless log level applied", glog_get_level() == GLOG_WARN);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(headless_game_does_not_draw_or_run_loop, {
+GUNIT_TEST(headless_game_does_not_draw_or_run_loop,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint_Config config = {.asset_root = glint__test_asset_root, .initial_script = "/game.lua", .headless = true};
@@ -465,10 +454,9 @@ GUNIT_TEST(headless_game_does_not_draw_or_run_loop, {
     gunit_assert("headless cannot run window loop", !glint_run(context.alloc, context.game));
     glint__test_context_free(&context);
     gunit_assert("headless shutdown leaves window untouched", context.state.close_calls == 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(invalid_mount_rejects_game, {
+GUNIT_TEST(invalid_mount_rejects_game,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint__test_state = &context.state;
@@ -478,10 +466,9 @@ GUNIT_TEST(invalid_mount_rejects_game, {
     glint_Config config = {.asset_root = glint__test_asset_root, .mounts = mounts, .mount_count = 2, .headless = true};
     context.game = glint_new(context.alloc, &config);
     gunit_assert("invalid mount rejects game", context.game == NULL);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(additional_mount_resolves_assets, {
+GUNIT_TEST(additional_mount_resolves_assets,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint_Mount mount = {.point = "/extra", .root = glint__test_extra_root};
@@ -496,10 +483,9 @@ GUNIT_TEST(additional_mount_resolves_assets, {
     size_t size = 0;
     context.source = gvfs_read(context.alloc, glint_vfs(context.game), "/extra/atlas.json", &size);
     gunit_assert("additional mount resolves asset", context.source != NULL && size != 0);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(additional_mount_preserves_asset_root, {
+GUNIT_TEST(additional_mount_preserves_asset_root,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint_Mount mount = {.point = "/extra", .root = glint__test_extra_root};
@@ -514,11 +500,9 @@ GUNIT_TEST(additional_mount_preserves_asset_root, {
     size_t size = 0;
     context.source = gvfs_read(context.alloc, glint_vfs(context.game), "/game.lua", &size);
     gunit_assert("asset root remains readable", context.source != NULL && size != 0);
-    gunit_return();
-})
+)
 
-#ifdef GLINT_TEST_PLATFORM
-GUNIT_TEST(raylib_logs_use_glint_sink, {
+GUNIT_TEST(raylib_logs_use_glint_sink,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint__test_state = &context.state;
@@ -532,10 +516,9 @@ GUNIT_TEST(raylib_logs_use_glint_sink, {
     gunit_assert("raylib severity translated", context.state.log_level == GLOG_DEBUG);
     gunit_assert("raylib formatting preserved", strcmp(context.state.log_message, "raylib message 100%") == 0);
     gunit_assert("one callback per raylib log", context.state.log_count == 1);
-    gunit_return();
-})
+)
 
-GUNIT_TEST(raylib_logs_follow_glint_filter, {
+GUNIT_TEST(raylib_logs_follow_glint_filter,
     glint__WindowContext context = {0};
     gunit_defer(glint__test_context_free, &context);
     glint__test_state = &context.state;
@@ -547,8 +530,7 @@ GUNIT_TEST(raylib_logs_follow_glint_filter, {
     gunit_assert("Glint controls raylib filtering", context.state.log_count == 0);
     TraceLog(LOG_ERROR, "error");
     gunit_assert("raylib errors reach Glint", context.state.log_count == 1 && context.state.log_level == GLOG_ERROR);
-    gunit_return();
-})
+)
 
 #endif
 

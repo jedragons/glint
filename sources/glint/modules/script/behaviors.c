@@ -69,7 +69,7 @@ static void gscript_behavior__behaviors_call(
     const char* callback,
     gecs_ID entity
 );
-static bool gscript_behavior__behaviors_destroy_behavior(
+static void gscript_behavior__behaviors_destroy_behavior(
     galloc_Allocator alloc,
     gscript_behavior_Behaviors* behaviors,
     gecs_ID entity
@@ -187,9 +187,7 @@ bool gscript_behavior_attach(gscript_behavior_Behaviors* behaviors, gecs_Entity 
         return false;
     }
 
-    if (!gscript_behavior__behaviors_destroy_behavior(alloc, behaviors, entity)) {
-        return false;
-    }
+    gscript_behavior__behaviors_destroy_behavior(alloc, behaviors, entity);
 
     if (!gecs_Entity_alive(handle) || !gscript_behavior__behaviors_reserve_behavior(alloc, behaviors)) {
         return gscript_behavior__behaviors_behavior_error(
@@ -246,9 +244,7 @@ bool gscript_behavior_destroy(galloc_Allocator alloc, gscript_behavior_Behaviors
     while (behaviors->count > 0) {
         gecs_ID entity = behaviors->items[behaviors->count - 1]->entity;
         if (gecs_Entity_alive((gecs_Entity) {.world = behaviors->world, .id = entity})) {
-            if (!gscript_behavior__behaviors_destroy_behavior(alloc, behaviors, entity)) {
-                lua_pop(gscript_lua_state(behaviors->script), 1);
-            }
+            gscript_behavior__behaviors_destroy_behavior(alloc, behaviors, entity);
         }
 
         size_t index = gscript_behavior__behaviors_find_behavior(behaviors, entity);
@@ -338,9 +334,7 @@ bool gscript_behavior__update(galloc_Allocator alloc, gscript_behavior_Behaviors
             continue;
         }
 
-        index = gscript_behavior__behaviors_find_behavior(behaviors, entities[i].entity);
-        snapshot_is_current = index != SIZE_MAX && behaviors->items[index]->version == entities[i].version;
-        if (snapshot_is_current && !behaviors->items[index]->destroying) {
+        if (!behaviors->items[index]->destroying) {
             gscript_behavior__behaviors_call(behaviors, behaviors->items[index]->asset, "update", entities[i].entity);
         }
     }
@@ -470,14 +464,14 @@ static void gscript_behavior__behaviors_call(
     asset->error_state = true;
 }
 
-static bool gscript_behavior__behaviors_destroy_behavior(
+static void gscript_behavior__behaviors_destroy_behavior(
     galloc_Allocator alloc,
     gscript_behavior_Behaviors* behaviors,
     gecs_ID entity
 ) {
     size_t index = gscript_behavior__behaviors_find_behavior(behaviors, entity);
     if (index == SIZE_MAX || behaviors->items[index]->destroying) {
-        return true;
+        return;
     }
 
     uint64_t version = behaviors->items[index]->version;
@@ -488,8 +482,6 @@ static bool gscript_behavior__behaviors_destroy_behavior(
     if (index != SIZE_MAX && behaviors->items[index]->version == version) {
         gscript_behavior__behaviors_remove_behavior(alloc, behaviors, index);
     }
-
-    return true;
 }
 
 static bool gscript_behavior__behaviors_on_destroy(gecs_Entity handle, void* user) {
@@ -497,7 +489,12 @@ static bool gscript_behavior__behaviors_on_destroy(gecs_Entity handle, void* use
     gecs_ID entity = handle.id;
     galloc_Allocator alloc = glint_allocator(world);
     gscript_behavior_Behaviors* behaviors = user;
-    return world == behaviors->world && gscript_behavior__behaviors_destroy_behavior(alloc, behaviors, entity);
+    if (world != behaviors->world) {
+        return false;
+    }
+
+    gscript_behavior__behaviors_destroy_behavior(alloc, behaviors, entity);
+    return true;
 }
 
 static void gscript_behavior__behaviors_on_native_destroy(gecs_Entity handle, void* user) {
@@ -510,13 +507,7 @@ static void gscript_behavior__behaviors_on_native_destroy(gecs_Entity handle, vo
         return;
     }
 
-    if (!gscript_behavior__behaviors_destroy_behavior(behaviors->alloc, behaviors, entity)) {
-        lua_pop(gscript_lua_state(behaviors->script), 1);
-        size_t index = gscript_behavior__behaviors_find_behavior(behaviors, entity);
-        if (index != SIZE_MAX) {
-            gscript_behavior__behaviors_remove_behavior(behaviors->alloc, behaviors, index);
-        }
-    }
+    gscript_behavior__behaviors_destroy_behavior(behaviors->alloc, behaviors, entity);
 
     gscript_bindings_forget_entity(behaviors->script, handle);
 }

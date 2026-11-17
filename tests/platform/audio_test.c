@@ -41,34 +41,31 @@ void SetTraceLogLevel(int level) {
     (void)level;
 }
 
-GUNIT_TEST(open_initializes_backend_with_requested_buffer, {
+GUNIT_TEST(open_initializes_backend_with_requested_buffer,
     gplatform_audio__Context ctx = {.initialization_succeeds = true};
     gplatform_audio__current = &ctx;
     gunit_defer(gplatform_audio__free, &ctx);
     gplatform_audio_open(512);
     gunit_assert("requested buffer forwarded", ctx.buffer_size == 512);
     gunit_assert("backend initialized", ctx.opens == 1 && gplatform_audio_ready());
-    gunit_return();
-})
+)
 
-GUNIT_TEST(readiness_reports_failed_backend_initialization, {
+GUNIT_TEST(readiness_reports_failed_backend_initialization,
     gplatform_audio__Context ctx = {0};
     gplatform_audio__current = &ctx;
     gunit_defer(gplatform_audio__free, &ctx);
     gplatform_audio_open(512);
     gunit_assert("failed backend remains unavailable", ctx.opens == 1 && !gplatform_audio_ready());
-    gunit_return();
-})
+)
 
-GUNIT_TEST(close_releases_backend_device, {
+GUNIT_TEST(close_releases_backend_device,
     gplatform_audio__Context ctx = {.initialization_succeeds = true};
     gplatform_audio__current = &ctx;
     gunit_defer(gplatform_audio__free, &ctx);
     gplatform_audio_open(512);
     gplatform_audio_close();
     gunit_assert("backend closed", ctx.closes == 1 && !gplatform_audio_ready());
-    gunit_return();
-})
+)
 
 gunit_main();
 
