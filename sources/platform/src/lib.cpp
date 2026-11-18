@@ -1,7 +1,0 @@
-#include "./audio.cpp"
-#include "./filesystem.cpp"
-#include "./log.cpp"
-#include "./main.cpp"
-#include "./renderer.cpp"
-#include "./texture.cpp"
-#include "./window.cpp"
