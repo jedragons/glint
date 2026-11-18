@@ -48,7 +48,7 @@ Preset names describe the target, not the host. Conditions gate compatible hosts
 Linux and macOS native presets require that host OS. Windows MSVC/GCC presets
 require Windows. Windows MinGW and Emscripten presets work on Linux, macOS and
 Windows with the matching toolchain installed. These lists cover Tier 1 except Android.
-See [cmake/README.md](cmake/README.md) for SDK requirements and known limitations.
+See the [build notes](README.md#building) for platform requirements.
 
 ### Host defaults
 

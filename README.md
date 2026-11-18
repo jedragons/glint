@@ -6,16 +6,25 @@ Simple Game Engine with ECS and Lua Scripting
 
 ## Building
 
-glint uses CMake and vendors all of its dependencies under `vendor/`, so no package manager setup is
-needed.
+Glint builds with CMake and Ninja. Lua and raylib are included under `vendor/`.
 
 ```bash
-cmake -S . -B build -G Ninja
-cmake --build build
+just configure
+just build
+just test
 ```
 
-A `justfile` wraps the same steps: `just configure` runs the CMake configure step, `just check`
-configures, builds everything and runs `cargo check` on the workspace crates.
+These commands default to `build/default/`. To debug one engine suite directly, run
+for example `build/default/tests/glint_suites_test allocator`.
+
+- On Linux, the bundled GLFW builds both Wayland and X11 backends. Install `wayland-scanner`,
+  `pkg-config`, and the development files for Wayland, xkbcommon and X11.
+- On macOS, use Clang. The vendored Cocoa code uses Apple Blocks, which Homebrew GCC cannot compile.
+- Cross builds need the target SDK and libraries. The Windows ARM64 MinGW preset uses LLVM-MinGW.
+  Set `CMAKE_CROSSCOMPILING_EMULATOR` to run cross-built tests with a custom runner.
+
+When changing a Lua binding, update its LuaLS stub under `definitions/` by hand for editor
+completion and type checking.
 
 ## Examples
 
@@ -23,13 +32,13 @@ Building the project also builds the examples under `examples/` (`basic`, `2d/at
 Run one directly from the build output:
 
 ```bash
-./build/examples/basic
+./build/default/examples/glint_basic
 ```
 
 or through just, which also makes sure it is built first:
 
 ```bash
-just run-example basic
+just run-example glint_basic
 ```
 
 ## Using glint in your own project
