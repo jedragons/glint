@@ -22,20 +22,19 @@ typedef struct gscript_behavior__TestFailAllocator {
     bool fail_all;
 } gscript_behavior__TestFailAllocator;
 
-typedef struct gscript_behavior__test_Reentry {
+typedef struct gscript_behavior__TestReentry {
     gscript_behavior_Behaviors* behaviors;
     bool deferred;
-} gscript_behavior__test_Reentry;
+} gscript_behavior__TestReentry;
 
-typedef struct gscript_behavior__test_ModuleReentry {
+typedef struct gscript_behavior__TestModuleReentry {
     gmod_Modules* modules;
     bool unload_deferred;
     bool partial_deferred;
     bool free_deferred;
-} gscript_behavior__test_ModuleReentry;
+} gscript_behavior__TestModuleReentry;
 
 static bool gscript_behavior__test_write_file(const char* path, const char* contents);
-static bool gscript_behavior__test_run(galloc_Allocator alloc, gscript_lua_Runtime* script, const char* source);
 static void* gscript_behavior__test_fail_alloc(void* data, size_t size);
 static void gscript_behavior__test_fail_free(void* data, void* ptr);
 static void* gscript_behavior__test_fail_calloc(void* data, size_t count, size_t size);
@@ -63,12 +62,14 @@ typedef struct gscript_behavior__TestContext {
     gecs_Entity entities[3];
     size_t entity_count;
     const char* files[3];
-    gscript_behavior__test_Reentry reentry;
-    gscript_behavior__test_ModuleReentry module_reentry;
+    gscript_behavior__TestReentry reentry;
+    gscript_behavior__TestModuleReentry module_reentry;
 } gscript_behavior__TestContext;
 
 static bool gscript_behavior__test_create(gscript_behavior__TestContext* context, bool module_owned);
 static void gscript_behavior__test_free(void* user);
+static bool gscript_behavior__test_run(gscript_behavior__TestContext* context, const char* source);
+static bool gscript_behavior__test_allocator_recovery(gscript_behavior__TestContext* context);
 static bool gscript_behavior__test_file(
     gscript_behavior__TestContext* context,
     size_t slot,
@@ -84,143 +85,128 @@ static bool gscript_behavior__test_shared(gscript_behavior__TestContext* context
 static bool gscript_behavior__test_module(gscript_behavior__TestContext* context);
 static bool gscript_behavior__test_callback_errors(gscript_behavior__TestContext* context);
 
-GUNIT_TEST(behavior_setup_runs_on_attach,
+GUNIT_TEST(spawned_behavior_lifecycle,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_parent(&context));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(parent.count == 1 and parent:valid())")
-    );
+    gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
+    gunit_assert("attach the parent behavior", gscript_behavior__test_parent(&context));
+
+    const char* after_setup =
+        "assert(parent.count == 1)\n"
+        "assert(parent:valid())\n";
+    gunit_assert("parent setup runs on attach", gscript_behavior__test_run(&context, after_setup));
+
+    gunit_assert("first update spawns the child", gscript_behavior_update(context.alloc, context.behaviors));
+    const char* after_spawn =
+        "assert(parent.count == 2)\n"
+        "assert(child.started)\n"
+        "assert(child:valid())\n";
+    gunit_assert("child runs setup and stays alive", gscript_behavior__test_run(&context, after_spawn));
+
+    gunit_assert("second update runs the child", gscript_behavior_update(context.alloc, context.behaviors));
+    const char* after_destroy =
+        "assert(parent.count == 3)\n"
+        "assert(not child:valid())\n"
+        "assert(child_destroyed == 1)\n";
+    gunit_assert("child destroys itself during update", gscript_behavior__test_run(&context, after_destroy));
 )
 
-GUNIT_TEST(spawned_behavior_waits_until_next_update,
+GUNIT_TEST(behavior_replacement,
     gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_parent(&context));
-    gunit_assert("update parent", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(
-            context.alloc,
-            context.script,
-            "assert(parent.count == 2 and child.started and child:valid())"
-        )
-    );
-)
 
-GUNIT_TEST(behavior_can_destroy_itself_during_update,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_parent(&context));
-    gunit_assert("spawn child", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert("update child", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(
-            context.alloc,
-            context.script,
-            "assert(parent.count == 3 and not child:valid() and child_destroyed == 1)"
-        )
-    );
-)
+    GUNIT_SETUP({
+        gunit_defer(gscript_behavior__test_free, &context);
+        gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
+        gunit_assert("attach and replace the parent behavior", gscript_behavior__test_replacement(&context));
+    })
 
-GUNIT_TEST(replacement_destroys_prior_behavior_and_runs_setup,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_replacement(&context));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(parent_destroyed == 1 and parent.replaced)")
-    );
-    gunit_assert("update replacement", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(parent.version == 1)")
-    );
-)
+    GUNIT_SECTION("destroys the original behavior and runs replacement setup", {
+        gunit_assert(
+            "run original destroy and replacement setup",
+            gscript_behavior__test_run(&context, "assert(parent_destroyed == 1 and parent.replaced)")
+        );
+        gunit_assert("update replacement", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "update uses the replacement callback",
+            gscript_behavior__test_run(&context, "assert(parent.version == 1)")
+        );
+    })
 
-GUNIT_TEST(reload_updates_hooks_without_repeating_setup,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_replacement(&context));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(
-            context.files[2],
-            "return {setup=function(e) error('reload must not call setup') end, update=function(e) e.version=200 end, destroy=function(e) reload_destroyed=true end}"
-        )
-    );
-    gunit_assert("reload replacement", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(parent.version == 200)")
-    );
-)
+    GUNIT_SECTION("reloads the replacement without repeating setup", {
+        gunit_assert(
+            "write reloaded behavior with a failing setup",
+            gscript_behavior__test_write_file(
+                context.files[2],
+                "return {\n"
+                "    setup = function(entity) error('reload must not call setup') end,\n"
+                "    update = function(entity) entity.version = 200 end,\n"
+                "    destroy = function(entity) reload_destroyed = true end\n"
+                "}\n"
+            )
+        );
+        gunit_assert("reload replacement", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "update uses the reloaded callback",
+            gscript_behavior__test_run(&context, "assert(parent.version == 200)")
+        );
+    })
 
-GUNIT_TEST(manager_shutdown_uses_reloaded_destroy_hook,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_replacement(&context));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(
-            context.files[2],
-            "return {update=function(e) e.version=200 end, destroy=function(e) reload_destroyed=true end}"
-        )
-    );
-    gunit_assert("reload replacement", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert("destroy manager", gscript_behavior_destroy(context.alloc, context.behaviors));
-    context.behaviors = NULL;
-    gasset_Cache_destroy(context.alloc, context.cache);
-    context.cache = NULL;
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(reload_destroyed)")
-    );
+    GUNIT_SECTION("calls the latest destroy hook at shutdown", {
+        gunit_assert(
+            "write replacement destroy hook",
+            gscript_behavior__test_write_file(
+                context.files[2],
+                "return {\n"
+                "    update = function(entity) entity.version = 200 end,\n"
+                "    destroy = function(entity) reload_destroyed = true end\n"
+                "}\n"
+            )
+        );
+        gunit_assert("reload replacement", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert("destroy manager", gscript_behavior_destroy(context.alloc, context.behaviors));
+        context.behaviors = NULL;
+        gasset_Cache_destroy(context.alloc, context.cache);
+        context.cache = NULL;
+        gunit_assert(
+            "shutdown runs the reloaded destroy hook",
+            gscript_behavior__test_run(&context, "assert(reload_destroyed)")
+        );
+    })
 )
 
 GUNIT_TEST(replacing_another_behavior_defers_its_update,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_mutation(&context));
+    gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
+    gunit_assert("attach the replacing and original behaviors", gscript_behavior__test_mutation(&context));
     gunit_assert("update replaces another behavior", gscript_behavior_update(context.alloc, context.behaviors));
     gunit_assert(
-        "test helper succeeds",
+        "replacement runs setup and waits to update",
         gscript_behavior__test_run(
-            context.alloc,
-            context.script,
-            "assert(old_destroyed and new_setup and not new_updates)"
+            &context, "assert(old_destroyed and new_setup and not new_updates)"
         )
     );
     gunit_assert("next update", gscript_behavior_update(context.alloc, context.behaviors));
     gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(new_updates == 1)")
+        "replacement updates on the next frame",
+        gscript_behavior__test_run(&context, "assert(new_updates == 1)")
     );
 )
 
 GUNIT_TEST(invalid_reload_preserves_script_and_can_be_retried,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_mutation(&context));
+    gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
+    gunit_assert("attach the replacing and original behaviors", gscript_behavior__test_mutation(&context));
     gunit_assert("replace behavior", gscript_behavior_update(context.alloc, context.behaviors));
     gunit_assert("first replacement update", gscript_behavior_update(context.alloc, context.behaviors));
     gunit_assert(
-        "test helper succeeds",
+        "write malformed Lua",
         gscript_behavior__test_write_file(context.files[2], "return { update = function( invalid lua syntax")
     );
     gunit_assert("bad reload retains prior script", gscript_behavior_update(context.alloc, context.behaviors));
     gunit_assert(
-        "test helper succeeds",
+        "write a corrected update callback",
         gscript_behavior__test_write_file(
             context.files[2],
             "return {update=function(e) new_updates=(new_updates or 0)+10 end}"
@@ -228,98 +214,60 @@ GUNIT_TEST(invalid_reload_preserves_script_and_can_be_retried,
     );
     gunit_assert("fixed reload succeeds", gscript_behavior_update(context.alloc, context.behaviors));
     gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(new_updates == 12)")
+        "prior and corrected callbacks both ran",
+        gscript_behavior__test_run(&context, "assert(new_updates == 12)")
     );
 )
 
 GUNIT_TEST(shutdown_rejects_new_behavior_spawns,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_mutation(&context));
+    gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
+    gunit_assert("attach the replacing and original behaviors", gscript_behavior__test_mutation(&context));
     gunit_assert("destroy manager", gscript_behavior_destroy(context.alloc, context.behaviors));
     context.behaviors = NULL;
     gasset_Cache_destroy(context.alloc, context.cache);
     context.cache = NULL;
     gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(shutdown_blocked)")
+        "destroy hook could not spawn during shutdown",
+        gscript_behavior__test_run(&context, "assert(shutdown_blocked)")
     );
 )
 
-GUNIT_TEST(update_recovers_after_transient_allocator_denial,
+GUNIT_TEST(behavior_update_allocator_recovery,
     gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_file(
-            &context,
-            0,
-            "glint-behavior-failure.lua",
-            "return {update=function(e) updates=(updates or 0)+1 end}"
-        )
-    );
-    gunit_assert("test helper succeeds", gscript_behavior__test_attach(&context, "/glint-behavior-failure.lua", "e"));
-    context.allocations.fail_next = true;
-    int top = lua_gettop(context.lua);
-    bool updated = gscript_behavior_update(context.alloc, context.behaviors);
-    context.allocations.fail_next = false;
-    context.allocations.fail_all = false;
-    if (!updated) {
-        gunit_assert("infrastructure failure leaves a Lua error", lua_gettop(context.lua) > top);
-        lua_settop(context.lua, top);
-    }
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "before_recovery = updates or 0")
-    );
-    gunit_assert("update succeeds after allocator recovery", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(updates == before_recovery + 1)")
-    );
-)
 
-GUNIT_TEST(update_recovers_after_persistent_allocator_denial,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_file(
-            &context,
-            0,
-            "glint-behavior-failure.lua",
-            "return {update=function(e) updates=(updates or 0)+1 end}"
-        )
-    );
-    gunit_assert("test helper succeeds", gscript_behavior__test_attach(&context, "/glint-behavior-failure.lua", "e"));
-    context.allocations.fail_all = true;
-    int top = lua_gettop(context.lua);
-    bool updated = gscript_behavior_update(context.alloc, context.behaviors);
-    context.allocations.fail_next = false;
-    context.allocations.fail_all = false;
-    if (!updated) {
-        gunit_assert("infrastructure failure leaves a Lua error", lua_gettop(context.lua) > top);
-        lua_settop(context.lua, top);
-    }
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "before_recovery = updates or 0")
-    );
-    gunit_assert("update succeeds after allocator recovery", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(updates == before_recovery + 1)")
-    );
+    GUNIT_SETUP({
+        gunit_defer(gscript_behavior__test_free, &context);
+        gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
+        gunit_assert(
+            "write an update counter script",
+            gscript_behavior__test_file(
+                &context,
+                0,
+                "glint-behavior-failure.lua",
+                "return {update=function(e) updates=(updates or 0)+1 end}"
+            )
+        );
+        const char* counter_path = "/glint-behavior-failure.lua";
+        gunit_assert("attach the counter behavior", gscript_behavior__test_attach(&context, counter_path, "e"));
+    })
+
+    GUNIT_SECTION("recovers after one allocation denial", {
+        context.allocations.fail_next = true;
+        gunit_assert("update recovers", gscript_behavior__test_allocator_recovery(&context));
+    })
+
+    GUNIT_SECTION("recovers after persistent allocation denial", {
+        context.allocations.fail_all = true;
+        gunit_assert("update recovers", gscript_behavior__test_allocator_recovery(&context));
+    })
 )
 
 GUNIT_TEST(behavior_manager_allows_only_one_observer,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
+    gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
     gunit_assert(
         "single observer",
         gscript_behavior_new(context.script, context.world, context.vfs, context.cache) == NULL
@@ -329,9 +277,9 @@ GUNIT_TEST(behavior_manager_allows_only_one_observer,
 GUNIT_TEST(behavior_attach_rejects_another_world,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
+    gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
     gunit_assert(
-        "test helper succeeds",
+        "write a behavior for the foreign entity",
         gscript_behavior__test_file(&context, 0, "glint-native-destroy.lua", "return {}")
     );
     context.other_world = gecs_World_new(context.alloc);
@@ -343,245 +291,251 @@ GUNIT_TEST(behavior_attach_rejects_another_world,
     );
 )
 
-GUNIT_TEST(native_entity_destroy_invokes_hook_once,
+GUNIT_TEST(native_behavior_destruction,
     gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_native(&context));
-    gecs_Entity_destroy(context.entities[0]);
-    gunit_assert("native destroy removes entity", !gecs_Entity_alive(context.entities[0]));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(destroyed == 1)")
-    );
-    gunit_assert("update after native destroy", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(destroyed == 1)")
-    );
+
+    GUNIT_SETUP({
+        gunit_defer(gscript_behavior__test_free, &context);
+        gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
+        gunit_assert("attach behavior with a native destroy callback", gscript_behavior__test_native(&context));
+    })
+
+    GUNIT_SECTION("calls the destroy hook once when the native entity is destroyed", {
+        gecs_Entity_destroy(context.entities[0]);
+        gunit_assert("native destroy removes entity", !gecs_Entity_alive(context.entities[0]));
+        gunit_assert(
+            "destroy callback ran once",
+            gscript_behavior__test_run(&context, "assert(destroyed == 1)")
+        );
+        gunit_assert("update after native destroy", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "later update does not repeat destruction",
+            gscript_behavior__test_run(&context, "assert(destroyed == 1)")
+        );
+    })
+
+    GUNIT_SECTION("consumes the destroy hook error when clearing the world", {
+        gunit_assert(
+            "make the destroy callback fail",
+            gscript_behavior__test_run(&context, "fail_destroy = true")
+        );
+        int top = lua_gettop(context.lua);
+        gecs_World_clear(context.world);
+        gunit_assert("destroy error discarded", lua_gettop(context.lua) == top);
+        gunit_assert(
+            "clearing the world runs the callback once",
+            gscript_behavior__test_run(&context, "assert(destroyed == 1)")
+        );
+        gunit_assert("destroy manager after clear", gscript_behavior_destroy(context.alloc, context.behaviors));
+        context.behaviors = NULL;
+        gunit_assert(
+            "manager destruction does not repeat the callback",
+            gscript_behavior__test_run(&context, "assert(destroyed == 1)")
+        );
+    })
 )
 
-GUNIT_TEST(world_clear_discards_destroy_callback_error,
+GUNIT_TEST(shared_behavior_asset,
     gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_native(&context));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "fail_destroy = true")
-    );
-    int top = lua_gettop(context.lua);
-    gecs_World_clear(context.world);
-    gunit_assert("destroy error discarded", lua_gettop(context.lua) == top);
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(destroyed == 1)")
-    );
-    gunit_assert("destroy manager after clear", gscript_behavior_destroy(context.alloc, context.behaviors));
-    context.behaviors = NULL;
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(destroyed == 1)")
-    );
-)
 
-GUNIT_TEST(shared_behavior_components_share_asset_but_not_state,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_shared(&context));
-    gecs_Component type = gecs_Component_find(context.world, "gscript_behavior_Behavior");
-    gunit_assert("component registered", gecs_Component_count(context.world, type) == 2);
-    const gscript_behavior_Behavior* first = gecs_Component_get(context.entities[0], type);
-    const gscript_behavior_Behavior* second = gecs_Component_get(context.entities[1], type);
-    gunit_assert("components exist", first != NULL && second != NULL);
-    gunit_assert(
-        "components share asset",
-        first->asset == second->asset && strcmp(gscript_asset_path(first->asset), "/glint-shared-behavior.lua") == 0
-    );
-    gunit_assert("components use the supplied Lua state", first->lua == context.lua && second->lua == context.lua);
-    lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
-    lua_rawgeti(context.lua, LUA_REGISTRYINDEX, second->state_ref);
-    gunit_assert("components own separate Lua tables", !lua_rawequal(context.lua, -1, -2));
-    lua_pop(context.lua, 2);
-)
+    GUNIT_SETUP({
+        gunit_defer(gscript_behavior__test_free, &context);
+        gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
+        gunit_assert("attach the same behavior asset to both entities", gscript_behavior__test_shared(&context));
+    })
 
-GUNIT_TEST(shared_behavior_source_executes_once,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_shared(&context));
-    gunit_assert("update both", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(
-            context.alloc,
-            context.script,
-            "assert(loads == 1 and a.count == 1 and b.count == 1 and math.min(a.shared, b.shared) == 1 and math.max(a.shared, b.shared) == 2)"
-        )
-    );
-)
+    GUNIT_SECTION("shares the asset and gives each component its own state", {
+        gecs_Component type = gecs_Component_find(context.world, "gscript_behavior_Behavior");
+        gunit_assert("component registered", gecs_Component_count(context.world, type) == 2);
+        const gscript_behavior_Behavior* first = gecs_Component_get(context.entities[0], type);
+        const gscript_behavior_Behavior* second = gecs_Component_get(context.entities[1], type);
+        gunit_assert("first behavior is attached", first != NULL);
+        gunit_assert("second behavior is attached", second != NULL);
+        gunit_assert("both components refer to the same asset", first->asset == second->asset);
 
-GUNIT_TEST(shared_behavior_reload_preserves_lua_state,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_shared(&context));
-    gecs_Component type = gecs_Component_find(context.world, "gscript_behavior_Behavior");
-    const gscript_behavior_Behavior* first = gecs_Component_get(context.entities[0], type);
-    gunit_assert("first component", first != NULL);
-    lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
-    lua_setglobal(context.lua, "old_state");
-    gunit_assert("update both", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(
-            context.files[0],
-            "loads=loads+1; return {update=function(e) e.count=e.count+10 end}"
-        )
-    );
-    gunit_assert("reload once", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(
-            context.alloc,
-            context.script,
-            "assert(loads == 2 and a.count == 11 and b.count == 11)"
-        )
-    );
-    first = gecs_Component_get(context.entities[0], type);
-    gunit_assert("component remains attached after reload", first != NULL);
-    lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
-    lua_setglobal(context.lua, "new_state");
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(rawequal(old_state, new_state))")
-    );
-)
+        const char* asset_path = gscript_asset_path(first->asset);
+        gunit_assert("source asset has a path", asset_path != NULL);
+        gunit_assert("asset path is the attached source", strcmp(asset_path, "/glint-shared-behavior.lua") == 0);
+        gunit_assert("components use the supplied Lua state", first->lua == context.lua && second->lua == context.lua);
+        lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
+        lua_rawgeti(context.lua, LUA_REGISTRYINDEX, second->state_ref);
+        gunit_assert("components own separate Lua tables", !lua_rawequal(context.lua, -1, -2));
+        lua_pop(context.lua, 2);
+    })
 
-GUNIT_TEST(replacing_shared_behavior_collects_old_state,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_shared(&context));
-    gunit_assert("update both", gscript_behavior_update(context.alloc, context.behaviors));
-    gecs_Component type = gecs_Component_find(context.world, "gscript_behavior_Behavior");
-    const gscript_behavior_Behavior* first = gecs_Component_get(context.entities[0], type);
-    gunit_assert("first component", first != NULL);
-    luaL_requiref(context.lua, LUA_COLIBNAME, luaopen_coroutine, 1);
-    lua_pop(context.lua, 1);
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(
-            context.alloc,
-            context.script,
-            "weak_state=setmetatable({}, {__mode='v'}); local co=coroutine.create(function() assert(a.count==1) end); assert(coroutine.resume(co))"
-        )
-    );
-    lua_getglobal(context.lua, "weak_state");
-    lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
-    lua_rawseti(context.lua, -2, 1);
-    lua_pop(context.lua, 1);
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(context.files[0], "return {update=function(e) e.count=(e.count or 0)+10 end}")
-    );
-    gunit_assert("reload shared source", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "replace behavior",
-        gscript_behavior_attach(context.behaviors, context.entities[0], "/glint-shared-behavior.lua")
-    );
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(
-            context.alloc,
-            context.script,
-            "collectgarbage(); collectgarbage(); assert(weak_state[1] == nil and a.count == nil and a.shared == nil and b.count == 11)"
-        )
-    );
-    first = gecs_Component_get(context.entities[0], type);
-    const gscript_behavior_Behavior* second = gecs_Component_get(context.entities[1], type);
-    gunit_assert("replacement and retained components exist", first != NULL && second != NULL);
-    lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
-    lua_rawgeti(context.lua, LUA_REGISTRYINDEX, second->state_ref);
-    gunit_assert("replacement owns a separate Lua table", !lua_rawequal(context.lua, -1, -2));
-    lua_pop(context.lua, 2);
+    GUNIT_SECTION("evaluates the source once for both entities", {
+        gunit_assert("update both", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "single asset execution shares a counter across entities",
+            gscript_behavior__test_run(
+                &context,
+                "assert(loads == 1)\n"
+                "assert(a.count == 1 and b.count == 1)\n"
+                "assert(math.min(a.shared, b.shared) == 1)\n"
+                "assert(math.max(a.shared, b.shared) == 2)\n"
+            )
+        );
+    })
+
+    GUNIT_SECTION("preserves the state tables when reloaded", {
+        gecs_Component type = gecs_Component_find(context.world, "gscript_behavior_Behavior");
+        const gscript_behavior_Behavior* first = gecs_Component_get(context.entities[0], type);
+        gunit_assert("first component", first != NULL);
+        lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
+        lua_setglobal(context.lua, "old_state");
+        gunit_assert("update both", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "rewrite the shared update callback",
+            gscript_behavior__test_write_file(
+                context.files[0],
+                "loads=loads+1; return {update=function(e) e.count=e.count+10 end}"
+            )
+        );
+        gunit_assert("reload once", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "both entities update using the reloaded script",
+            gscript_behavior__test_run(
+                &context, "assert(loads == 2 and a.count == 11 and b.count == 11)"
+            )
+        );
+        first = gecs_Component_get(context.entities[0], type);
+        gunit_assert("component remains attached after reload", first != NULL);
+        lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
+        lua_setglobal(context.lua, "new_state");
+        gunit_assert(
+            "reload preserves the original state table",
+            gscript_behavior__test_run(&context, "assert(rawequal(old_state, new_state))")
+        );
+    })
+
+    GUNIT_SECTION("releases the old state when reattached to one entity", {
+        gunit_assert("update both", gscript_behavior_update(context.alloc, context.behaviors));
+        gecs_Component type = gecs_Component_find(context.world, "gscript_behavior_Behavior");
+        const gscript_behavior_Behavior* first = gecs_Component_get(context.entities[0], type);
+        gunit_assert("first component", first != NULL);
+        luaL_requiref(context.lua, LUA_COLIBNAME, luaopen_coroutine, 1);
+        lua_pop(context.lua, 1);
+        gunit_assert(
+            "read behavior state from a coroutine and create a weak table",
+            gscript_behavior__test_run(
+                &context,
+                "weak_state = setmetatable({}, {__mode = 'v'})\n"
+                "local reader = coroutine.create(function() assert(a.count == 1) end)\n"
+                "assert(coroutine.resume(reader))\n"
+            )
+        );
+        lua_getglobal(context.lua, "weak_state");
+        lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
+        lua_rawseti(context.lua, -2, 1);
+        lua_pop(context.lua, 1);
+        gunit_assert(
+            "write the new update callback",
+            gscript_behavior__test_write_file(
+                context.files[0],
+                "return {update = function(entity) entity.count = (entity.count or 0) + 10 end}"
+            )
+        );
+        gunit_assert("reload shared source", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "replace behavior",
+            gscript_behavior_attach(context.behaviors, context.entities[0], "/glint-shared-behavior.lua")
+        );
+        gunit_assert(
+            "replaced state is collected and the other entity keeps its state",
+            gscript_behavior__test_run(
+                &context,
+                "collectgarbage()\n"
+                "collectgarbage()\n"
+                "assert(weak_state[1] == nil)\n"
+                "assert(a.count == nil and a.shared == nil)\n"
+                "assert(b.count == 11)\n"
+            )
+        );
+        first = gecs_Component_get(context.entities[0], type);
+        const gscript_behavior_Behavior* second = gecs_Component_get(context.entities[1], type);
+        gunit_assert("replacement and retained components exist", first != NULL && second != NULL);
+        lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
+        lua_rawgeti(context.lua, LUA_REGISTRYINDEX, second->state_ref);
+        gunit_assert("replacement owns a separate Lua table", !lua_rawequal(context.lua, -1, -2));
+        lua_pop(context.lua, 2);
+    })
 )
 
 GUNIT_TEST(script_module_imports_owned_services,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, true));
+    gunit_assert("load script module and dependencies", gscript_behavior__test_create(&context, true));
     gvfsmod_Service* vfs = gecs_context_get(context.world, GECS_CONTEXT(context.world, gvfsmod_Service));
     gasset_Service* assets = gecs_context_get(context.world, GECS_CONTEXT(context.world, gasset_Service));
     gscript_Service* script = gecs_context_get(context.world, GECS_CONTEXT(context.world, gscript_Service));
-    gunit_assert("dependencies provided", vfs != NULL && assets != NULL && script != NULL && script->module_owned);
+    gunit_assert("VFS service published", vfs != NULL);
+    gunit_assert("asset service published", assets != NULL);
+    gunit_assert("script service published", script != NULL);
+    gunit_assert("script module owns its service", script->module_owned);
     gunit_assert("asset module owns polling", !assets->host_polls);
 )
 
-GUNIT_TEST(script_module_updates_attached_behaviors,
+GUNIT_TEST(script_module_behavior_updates,
     gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, true));
-    gunit_assert("test helper succeeds", gscript_behavior__test_module(&context));
-    gunit_assert("update succeeded", gmod_Modules_update(context.alloc, context.modules));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(module_entity.count == 1)")
-    );
-)
 
-GUNIT_TEST(script_module_reload_recovers_without_leaking_lua_errors,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, true));
-    gunit_assert("test helper succeeds", gscript_behavior__test_module(&context));
-    gunit_assert("first update", gmod_Modules_update(context.alloc, context.modules));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(context.files[0], "return { update=function( invalid lua syntax")
-    );
-    gunit_assert("bad reload retains previous script", gmod_Modules_update(context.alloc, context.modules));
-    gunit_assert("reload error consumed", lua_gettop(context.lua) == 0);
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(context.files[0], "return {update=function(e) e.count=e.count+10 end}")
-    );
-    gunit_assert("reload recovers", gmod_Modules_update(context.alloc, context.modules));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(module_entity.count == 12)")
-    );
-)
+    GUNIT_SETUP({
+        gunit_defer(gscript_behavior__test_free, &context);
+        gunit_assert("load script module and dependencies", gscript_behavior__test_create(&context, true));
+        gunit_assert("attach behavior to the module entity", gscript_behavior__test_module(&context));
+    })
 
-GUNIT_TEST(script_module_allocation_failure_retains_diagnostic_then_retries,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, true));
-    gunit_assert("test helper succeeds", gscript_behavior__test_module(&context));
-    context.allocations.fail_all = true;
-    bool updated = gmod_Modules_update(context.alloc, context.modules);
-    context.allocations.fail_all = false;
-    if (!updated) {
-        gunit_assert("manager retains failure diagnostic", gmod_Modules_error(context.modules)[0] != '\0');
-        gunit_assert("module consumes Lua error", lua_gettop(context.lua) == 0);
-    }
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "before_recovery = module_entity.count or 0")
-    );
-    gunit_assert("next update succeeds after allocator recovery", gmod_Modules_update(context.alloc, context.modules));
-    gunit_assert("successful update clears diagnostic", gmod_Modules_error(context.modules)[0] == '\0');
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(module_entity.count == before_recovery + 1)")
-    );
+    GUNIT_SECTION("updates attached components", {
+        gunit_assert("update succeeded", gmod_Modules_update(context.alloc, context.modules));
+        gunit_assert(
+            "module update advances the behavior",
+            gscript_behavior__test_run(&context, "assert(module_entity.count == 1)")
+        );
+    })
+
+    GUNIT_SECTION("consumes a reload error and recovers after a correction", {
+        gunit_assert("first update", gmod_Modules_update(context.alloc, context.modules));
+        gunit_assert(
+            "write malformed behavior source",
+            gscript_behavior__test_write_file(context.files[0], "return { update=function( invalid lua syntax")
+        );
+        gunit_assert("bad reload retains previous script", gmod_Modules_update(context.alloc, context.modules));
+        gunit_assert("reload error consumed", lua_gettop(context.lua) == 0);
+        gunit_assert(
+            "write a corrected update callback",
+            gscript_behavior__test_write_file(context.files[0], "return {update=function(e) e.count=e.count+10 end}")
+        );
+        gunit_assert("reload recovers", gmod_Modules_update(context.alloc, context.modules));
+        gunit_assert(
+            "original and corrected update callbacks both ran",
+            gscript_behavior__test_run(&context, "assert(module_entity.count == 12)")
+        );
+    })
+
+    GUNIT_SECTION("retains an allocation diagnostic until the next successful update", {
+        context.allocations.fail_all = true;
+        bool updated = gmod_Modules_update(context.alloc, context.modules);
+        context.allocations.fail_all = false;
+        if (!updated) {
+            gunit_assert("manager retains failure diagnostic", gmod_Modules_error(context.modules)[0] != '\0');
+            gunit_assert("module consumes Lua error", lua_gettop(context.lua) == 0);
+        }
+        gunit_assert(
+            "record the last successful update count",
+            gscript_behavior__test_run(&context, "before_recovery = module_entity.count or 0")
+        );
+        gunit_assert("next update succeeds after recovery", gmod_Modules_update(context.alloc, context.modules));
+        gunit_assert("successful update clears diagnostic", gmod_Modules_error(context.modules)[0] == '\0');
+        gunit_assert(
+            "recovery increments the module entity count",
+            gscript_behavior__test_run(&context, "assert(module_entity.count == before_recovery + 1)")
+        );
+    })
 )
 
 GUNIT_TEST(script_module_unload_removes_context,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, true));
+    gunit_assert("load script module and dependencies", gscript_behavior__test_create(&context, true));
     gunit_assert("unload modules", gmod_Modules_unload(context.alloc, context.modules));
     context.script = NULL;
     context.behaviors = NULL;
@@ -596,9 +550,9 @@ GUNIT_TEST(script_module_unload_removes_context,
 GUNIT_TEST(behavior_destroy_is_deferred_during_cache_callback,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
+    gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
     gunit_assert(
-        "test helper succeeds",
+        "write behavior used after deferred destruction",
         gscript_behavior__test_file(
             &context,
             0,
@@ -606,7 +560,7 @@ GUNIT_TEST(behavior_destroy_is_deferred_during_cache_callback,
             "return {update=function(e) e.ran=true end}"
         )
     );
-    gunit_assert("test helper succeeds", gscript_behavior__test_attach(&context, "/glint-destroy-reentry.lua", "e"));
+    gunit_assert("attach behavior", gscript_behavior__test_attach(&context, "/glint-destroy-reentry.lua", "e"));
     context.reentry.behaviors = context.behaviors;
     gunit_assert(
         "register callback",
@@ -633,7 +587,7 @@ GUNIT_TEST(behavior_destroy_is_deferred_during_cache_callback,
 GUNIT_TEST(module_unload_is_deferred_during_asset_callback,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, true));
+    gunit_assert("load script module and dependencies", gscript_behavior__test_create(&context, true));
     context.module_reentry.modules = context.modules;
     gunit_assert(
         "register callback",
@@ -649,16 +603,13 @@ GUNIT_TEST(module_unload_is_deferred_during_asset_callback,
         )
     );
     gunit_assert("callback runs", gasset_Cache_load(context.alloc, context.cache, "reentry", "test") != NULL);
-    gunit_assert(
-        "all unloads deferred",
-        context.module_reentry.unload_deferred && context.module_reentry.partial_deferred
-            && context.module_reentry.free_deferred
-    );
+    gunit_assert("full unload deferred", context.module_reentry.unload_deferred);
+    gunit_assert("partial unload deferred", context.module_reentry.partial_deferred);
+    gunit_assert("manager free deferred", context.module_reentry.free_deferred);
     gscript_Service* script = gecs_context_get(context.world, GECS_CONTEXT(context.world, gscript_Service));
-    gunit_assert(
-        "services remain live",
-        script != NULL && script->script == context.script && gscript_behavior_update(context.alloc, script->behaviors)
-    );
+    gunit_assert("service is still installed", script != NULL);
+    gunit_assert("service retains the Lua runtime", script->script == context.script);
+    gunit_assert("behavior manager still updates", gscript_behavior_update(context.alloc, script->behaviors));
     gunit_assert("retry frees all modules", gmod_Modules_free(context.alloc, context.modules));
     context.modules = NULL;
     context.script = NULL;
@@ -671,98 +622,137 @@ GUNIT_TEST(module_unload_is_deferred_during_asset_callback,
     );
 )
 
-GUNIT_TEST(setup_callback_error_disables_only_shared_asset,
+GUNIT_TEST(shared_behavior_callback_errors,
     gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_callback_errors(&context));
-    gunit_assert("setup error consumed", lua_gettop(context.lua) == 0);
-    gunit_assert("other scripts continue", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(setups == 1 and other == 1)")
-    );
-)
 
-GUNIT_TEST(update_callback_error_disables_shared_asset_once,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_callback_errors(&context));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(
-            context.files[0],
-            "return {update=function(e) attempts=(attempts or 0)+1; error('update failed') end, destroy=function(e) destroys=(destroys or 0)+1 end}"
-        )
-    );
-    gunit_assert("reload errors do not fail frame", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert("repeat update succeeds", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(attempts == 1 and other == 2)")
-    );
-)
+    GUNIT_SETUP({
+        gunit_defer(gscript_behavior__test_free, &context);
+        gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
+        gunit_assert("attach behaviors for callback error handling", gscript_behavior__test_callback_errors(&context));
+    })
 
-GUNIT_TEST(disabled_asset_recovers_after_valid_reload,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_callback_errors(&context));
-    gunit_assert("initial update", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(
-            context.files[0],
-            "return {update=function(e) attempts=(attempts or 0)+1; error('update failed') end}"
-        )
-    );
-    gunit_assert("load failing update hook", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert("disabled update skipped", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(context.files[0], "return { update = function( invalid syntax")
-    );
-    gunit_assert("invalid reload retains disabled script", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(
-            context.files[0],
-            "return {update=function(e) recovered=(recovered or 0)+1 end}"
-        )
-    );
-    gunit_assert("fixed reload recovers asset", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(context.alloc, context.script, "assert(recovered == 2 and other == 5)")
-    );
-)
+    GUNIT_SECTION("disables the shared asset when setup fails", {
+        gunit_assert("setup error consumed", lua_gettop(context.lua) == 0);
+        gunit_assert("other scripts continue", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "only one failing setup runs and the other asset updates",
+            gscript_behavior__test_run(&context, "assert(setups == 1 and other == 1)")
+        );
+    })
 
-GUNIT_TEST(shared_destroy_callback_error_is_consumed_once,
-    gscript_behavior__TestContext context = {0};
-    gunit_defer(gscript_behavior__test_free, &context);
-    gunit_assert("create test context", gscript_behavior__test_create(&context, false));
-    gunit_assert("test helper succeeds", gscript_behavior__test_callback_errors(&context));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_write_file(
-            context.files[0],
-            "return {destroy=function(e) destroys=(destroys or 0)+1; error('destroy failed') end}"
-        )
-    );
-    gunit_assert("reload destroy hooks", gscript_behavior_update(context.alloc, context.behaviors));
-    gunit_assert(
-        "test helper succeeds",
-        gscript_behavior__test_run(
-            context.alloc,
-            context.script,
-            "callback_a:destroy(); callback_b:destroy(); assert(destroys == 1 and not callback_a:valid() and not callback_b:valid())"
-        )
-    );
-    gunit_assert("stack remains balanced", lua_gettop(context.lua) == 0);
+    GUNIT_SECTION("stops calling the shared update hook after it fails", {
+        gunit_assert(
+            "write a failing update hook",
+            gscript_behavior__test_write_file(
+                context.files[0],
+                "return {\n"
+                "    update = function(entity)\n"
+                "        attempts = (attempts or 0) + 1\n"
+                "        error('update failed')\n"
+                "    end,\n"
+                "    destroy = function(entity) destroys = (destroys or 0) + 1 end\n"
+                "}\n"
+            )
+        );
+        gunit_assert("reload errors do not fail frame", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert("repeat update succeeds", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "failing hook runs once while the other asset updates",
+            gscript_behavior__test_run(&context, "assert(attempts == 1 and other == 2)")
+        );
+    })
+
+    GUNIT_SECTION("reenables the shared asset after a successful reload", {
+        gunit_assert("initial update", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "write a failing update hook",
+            gscript_behavior__test_write_file(
+                context.files[0],
+                "return {\n"
+                "    update = function(entity)\n"
+                "        attempts = (attempts or 0) + 1\n"
+                "        error('update failed')\n"
+                "    end\n"
+                "}\n"
+            )
+        );
+        gunit_assert("load failing update hook", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert("disabled update skipped", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "write malformed Lua for the disabled asset",
+            gscript_behavior__test_write_file(context.files[0], "return { update = function( invalid syntax")
+        );
+        gunit_assert("invalid reload keeps asset disabled", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "write an update hook that succeeds",
+            gscript_behavior__test_write_file(
+                context.files[0],
+                "return {update=function(e) recovered=(recovered or 0)+1 end}"
+            )
+        );
+        gunit_assert("fixed reload recovers asset", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "recovered asset updates both entities and the independent asset kept updating",
+            gscript_behavior__test_run(&context, "assert(recovered == 2 and other == 5)")
+        );
+    })
+
+    GUNIT_SECTION("consumes the error from the failing shared destroy hook", {
+        gunit_assert(
+            "write a failing destroy hook",
+            gscript_behavior__test_write_file(
+                context.files[0],
+                "return {\n"
+                "    destroy = function(entity)\n"
+                "        destroys = (destroys or 0) + 1\n"
+                "        error('destroy failed')\n"
+                "    end\n"
+                "}\n"
+            )
+        );
+        gunit_assert("reload destroy hooks", gscript_behavior_update(context.alloc, context.behaviors));
+        gunit_assert(
+            "only one failing destroy hook runs and both entities are destroyed",
+            gscript_behavior__test_run(
+                &context,
+                "callback_a:destroy()\n"
+                "callback_b:destroy()\n"
+                "assert(destroys == 1)\n"
+                "assert(not callback_a:valid())\n"
+                "assert(not callback_b:valid())\n"
+            )
+        );
+        gunit_assert("stack remains balanced", lua_gettop(context.lua) == 0);
+    })
 )
 
 gunit_main();
+
+static bool gscript_behavior__test_allocator_recovery(gscript_behavior__TestContext* context) {
+    int top = lua_gettop(context->lua);
+    bool updated = gscript_behavior_update(context->alloc, context->behaviors);
+    context->allocations.fail_next = false;
+    context->allocations.fail_all = false;
+    if (!updated) {
+        if (!gunit_check("infrastructure failure leaves a Lua error", lua_gettop(context->lua) > top)) {
+            return false;
+        }
+        lua_settop(context->lua, top);
+    }
+    if (!gunit_check(
+            "record the last update count",
+            gscript_behavior__test_run(context, "before_recovery = updates or 0")
+        )) {
+        return false;
+    }
+    if (!gunit_check("update succeeds after recovery", gscript_behavior_update(context->alloc, context->behaviors))) {
+        return false;
+    }
+    return gunit_check(
+        "recovery increments the update count",
+        gscript_behavior__test_run(context, "assert(updates == before_recovery + 1)")
+    );
+}
 
 static bool gscript_behavior__test_create(gscript_behavior__TestContext* context, bool module_owned) {
     static const galloc_FunctionTable functions = {
@@ -824,10 +814,7 @@ static bool gscript_behavior__test_create(gscript_behavior__TestContext* context
         }
     }
     context->lua = gscript_lua_state(context->script);
-    if (!gunit_check("mount fixture directory", gvfs_mount(context->alloc, context->vfs, "/", "."))) {
-        return false;
-    }
-    return true;
+    return gunit_check("mount fixture directory", gvfs_mount(context->alloc, context->vfs, "/", "."));
 }
 
 static void gscript_behavior__test_free(void* user) {
@@ -906,9 +893,14 @@ static bool gscript_behavior__test_parent(gscript_behavior__TestContext* context
             context,
             0,
             "glint-behavior-parent-test.lua",
-            "return {setup=function(e) e.count=1 end, update=function(e) "
-            "e.count=e.count+1; if not child then child=spawn('/glint-behavior-child-test.lua') end end, "
-            "destroy=function(e) parent_destroyed=(parent_destroyed or 0)+1 end}"
+            "return {\n"
+            "    setup = function(parent) parent.count = 1 end,\n"
+            "    update = function(parent)\n"
+            "        parent.count = parent.count + 1\n"
+            "        if not child then child = spawn('/glint-behavior-child-test.lua') end\n"
+            "    end,\n"
+            "    destroy = function(parent) parent_destroyed = (parent_destroyed or 0) + 1 end\n"
+            "}\n"
         )) {
         return false;
     }
@@ -916,8 +908,11 @@ static bool gscript_behavior__test_parent(gscript_behavior__TestContext* context
             context,
             1,
             "glint-behavior-child-test.lua",
-            "return {setup=function(e) e.started=true end, update=function(e) e:destroy() end, "
-            "destroy=function(e) child_destroyed=(child_destroyed or 0)+1 end}"
+            "return {\n"
+            "    setup = function(child) child.started = true end,\n"
+            "    update = function(child) child:destroy() end,\n"
+            "    destroy = function(child) child_destroyed = (child_destroyed or 0) + 1 end\n"
+            "}\n"
         )) {
         return false;
     }
@@ -935,16 +930,15 @@ static bool gscript_behavior__test_replacement(gscript_behavior__TestContext* co
             context,
             2,
             "glint-behavior-replacement-test.lua",
-            "return {setup=function(e) e.replaced=true end, update=function(e) "
-            "e.version=1 end, destroy=function(e) replacement_destroyed=true end}"
+            "return {\n"
+            "    setup = function(entity) entity.replaced = true end,\n"
+            "    update = function(entity) entity.version = 1 end,\n"
+            "    destroy = function(entity) replacement_destroyed = true end\n"
+            "}\n"
         )) {
         return false;
     }
-    if (!gscript_behavior__test_run(
-            context->alloc,
-            context->script,
-            "parent:attach_module('/glint-behavior-replacement-test.lua')"
-        )) {
+    if (!gscript_behavior__test_run(context, "parent:attach_module('/glint-behavior-replacement-test.lua')")) {
         return false;
     }
     return true;
@@ -955,7 +949,17 @@ static bool gscript_behavior__test_mutation(gscript_behavior__TestContext* conte
             context,
             0,
             "glint-mutate-a.lua",
-            "return {update=function(e) if not changed then changed=true; b:attach_module('/glint-mutate-c.lua') end end, destroy=function(e) shutdown_blocked=not pcall(function() spawn('/glint-mutate-c.lua') end) end}"
+            "return {\n"
+            "    update = function(entity)\n"
+            "        if not changed then\n"
+            "            changed = true\n"
+            "            b:attach_module('/glint-mutate-c.lua')\n"
+            "        end\n"
+            "    end,\n"
+            "    destroy = function(entity)\n"
+            "        shutdown_blocked = not pcall(function() spawn('/glint-mutate-c.lua') end)\n"
+            "    end\n"
+            "}\n"
         )) {
         return false;
     }
@@ -989,9 +993,16 @@ static bool gscript_behavior__test_native(gscript_behavior__TestContext* context
             context,
             0,
             "glint-native-destroy.lua",
-            "return {setup=function(e) e.marker=42 end, destroy=function(e) "
-            "assert(e:valid() and e.marker==42); destroyed=(destroyed or 0)+1; e:destroy(); "
-            "assert(e:valid()); if fail_destroy then error('expected') end end}"
+            "return {\n"
+            "    setup = function(entity) entity.marker = 42 end,\n"
+            "    destroy = function(entity)\n"
+            "        assert(entity:valid() and entity.marker == 42)\n"
+            "        destroyed = (destroyed or 0) + 1\n"
+            "        entity:destroy()\n"
+            "        assert(entity:valid())\n"
+            "        if fail_destroy then error('expected') end\n"
+            "    end\n"
+            "}\n"
         )) {
         return false;
     }
@@ -1006,7 +1017,16 @@ static bool gscript_behavior__test_shared(gscript_behavior__TestContext* context
             context,
             0,
             "glint-shared-behavior.lua",
-            "loads=(loads or 0)+1; local n=0; return {setup=function(e) e.count=0 end, update=function(e) n=n+1; e.count=e.count+1; e.shared=n end}"
+            "loads = (loads or 0) + 1\n"
+            "local shared_updates = 0\n"
+            "return {\n"
+            "    setup = function(entity) entity.count = 0 end,\n"
+            "    update = function(entity)\n"
+            "        shared_updates = shared_updates + 1\n"
+            "        entity.count = entity.count + 1\n"
+            "        entity.shared = shared_updates\n"
+            "    end\n"
+            "}\n"
         )) {
         return false;
     }
@@ -1039,7 +1059,13 @@ static bool gscript_behavior__test_callback_errors(gscript_behavior__TestContext
             context,
             0,
             "glint-callback-errors.lua",
-            "return {setup=function(e) setups=(setups or 0)+1; error('setup failed') end, update=function(e) error('must not update') end}"
+            "return {\n"
+            "    setup = function(entity)\n"
+            "        setups = (setups or 0) + 1\n"
+            "        error('setup failed')\n"
+            "    end,\n"
+            "    update = function(entity) error('must not update') end\n"
+            "}\n"
         )) {
         return false;
     }
@@ -1073,20 +1099,16 @@ static bool gscript_behavior__test_write_file(const char* path, const char* cont
     if (!gunit_check("write script fixture", written == strlen(contents))) {
         return false;
     }
-    if (!gunit_check("close script fixture", closed == 0)) {
-        return false;
-    }
-    return true;
+    return gunit_check("close script fixture", closed == 0);
 }
 
-static bool gscript_behavior__test_run(galloc_Allocator alloc, gscript_lua_Runtime* script, const char* source) {
-    if (!gscript_lua_run(alloc, script, source, strlen(source), "behavior test")) {
-        fprintf(stderr, "%s\n", lua_tostring(gscript_lua_state(script), -1));
-        if (!gunit_check("Lua assertion chunk succeeds", false)) {
-            return false;
-        }
+static bool gscript_behavior__test_run(gscript_behavior__TestContext* context, const char* source) {
+    if (gscript_lua_run(context->alloc, context->script, source, strlen(source), "behavior test")) {
+        return true;
     }
-    return true;
+
+    const char* message = lua_tostring(context->lua, -1);
+    return gunit_check(message != NULL ? message : "Lua chunk failed", false);
 }
 
 static void* gscript_behavior__test_fail_alloc(void* data, size_t size) {
@@ -1127,7 +1149,7 @@ static void* gscript_behavior__test_fail_realloc(void* data, void* ptr, size_t o
 static bool gscript_behavior__test_reentry_load(galloc_Allocator alloc, void* instance, const char* path, void* user) {
     (void)instance;
     (void)path;
-    gscript_behavior__test_Reentry* test = user;
+    gscript_behavior__TestReentry* test = user;
     test->deferred = !gscript_behavior_destroy(alloc, test->behaviors);
     return true;
 }
@@ -1140,7 +1162,7 @@ static bool gscript_behavior__test_module_reentry_load(
 ) {
     (void)instance;
     (void)path;
-    gscript_behavior__test_ModuleReentry* test = user;
+    gscript_behavior__TestModuleReentry* test = user;
     test->unload_deferred = !gmod_Modules_unload(alloc, test->modules);
     test->partial_deferred = !gmod_Modules_unload_except(alloc, test->modules, GASSET_MODULE_NAME);
     test->free_deferred = !gmod_Modules_free(alloc, test->modules);

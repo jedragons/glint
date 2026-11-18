@@ -235,3 +235,15 @@ Use sanitizers to check memory errors and undefined behavior.
 
 Use benchmarks or profiling to identify work worth optimizing. Base performance
 claims on measurements.
+
+### V.4: Use sections for alternative outcomes that share a fixture
+
+Use `GUNIT_SETUP` for the starting state and give each `GUNIT_SECTION` a name
+that explains what changes or what to expect. For example, a loaded asset can
+reload successfully or keep its previous contents after a failed reload. Each
+section gets a fresh run of the setup. Keep a single sequence, such as checking
+the order of destruction, in a standalone test when it reads clearly on its own.
+
+Declare fixture variables borrowed by deferred cleanup directly in the
+`GUNIT_TEST` body so they stay alive until cleanup runs. Register cleanup in
+`GUNIT_SETUP` when the setup acquires the resource.

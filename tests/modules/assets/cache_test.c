@@ -96,156 +96,141 @@ static void* gasset__test_failing_realloc(void* data, void* ptr, size_t old_size
 static bool gasset__test_module_load(galloc_Allocator alloc, void* instance, const char* path, void* user);
 static void gasset__test_module_unload(galloc_Allocator alloc, void* instance, void* user);
 
-GUNIT_TEST(asset_unregister_only_removes_selected_type,
+GUNIT_TEST(asset_registration,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create", gasset__test_create(&ctx));
 
-    gunit_assert("first type registered", gasset__test_register(&ctx, "first", true));
-    gunit_assert("second type registered", gasset__test_register(&ctx, "second", true));
-    gasset__TestFakeAsset* first = gasset_Cache_load(ctx.alloc, ctx.cache, "first", "/one");
-    void* second = gasset_Cache_load(ctx.alloc, ctx.cache, "second", "/two");
-    gunit_assert("both loaded", first != NULL && second != NULL);
-    const size_t first_id = first->load_id;
-    gunit_assert("type removed", gasset_Cache_unregister(ctx.alloc, ctx.cache, "first"));
-    gunit_assert("only removed type unloaded", ctx.unloads == 1 && ctx.unload_order[0] == first_id);
-    gunit_assert("other type remains accessible", gasset_Cache_get(ctx.cache, "second", "/two") == second);
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("create cache", gasset__test_create(&ctx));
+    })
+
+    GUNIT_SECTION("rejects a duplicate type name", {
+        gunit_assert("register type", gasset__test_register(&ctx, "fake", true));
+        gunit_assert("duplicate type rejected", !gasset__test_register(&ctx, "fake", true));
+    })
+
+    GUNIT_SECTION("rejects an empty type name", {
+        gunit_assert("empty type rejected", !gasset__test_register(&ctx, "", true));
+    })
+
+    GUNIT_SECTION("requires a load callback", {
+        gunit_assert(
+            "missing load rejected",
+            !gasset_Cache_register(
+                ctx.alloc,
+                ctx.cache,
+                "other",
+                sizeof(gasset__TestFakeAsset),
+                NULL,
+                gasset__test_fake_reload,
+                gasset__test_fake_unload,
+                &ctx
+            )
+        );
+    })
+
+    GUNIT_SECTION("requires a nonzero instance size", {
+        gunit_assert(
+            "zero instance size rejected",
+            !gasset_Cache_register(
+                ctx.alloc,
+                ctx.cache,
+                "tiny",
+                0,
+                gasset__test_fake_load,
+                gasset__test_fake_reload,
+                gasset__test_fake_unload,
+                &ctx
+            )
+        );
+    })
 )
 
-GUNIT_TEST(asset_unregister_name_can_be_reused,
+GUNIT_TEST(asset_unregister,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
 
-    gunit_assert("type removed", gasset_Cache_unregister(ctx.alloc, ctx.cache, "fake"));
-    gunit_assert("removed name is reusable", gasset__test_register(&ctx, "fake", false));
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("register asset type", gasset__test_create_registered(&ctx, true));
+    })
+
+    GUNIT_SECTION("unloads only the selected type", {
+        gunit_assert("second type registered", gasset__test_register(&ctx, "second", true));
+        gasset__TestFakeAsset* first = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/one");
+        void* second = gasset_Cache_load(ctx.alloc, ctx.cache, "second", "/two");
+        gunit_assert("both loaded", first != NULL && second != NULL);
+        const size_t first_id = first->load_id;
+        gunit_assert("type removed", gasset_Cache_unregister(ctx.alloc, ctx.cache, "fake"));
+        gunit_assert("only removed type unloaded", ctx.unloads == 1 && ctx.unload_order[0] == first_id);
+        gunit_assert("other type remains accessible", gasset_Cache_get(ctx.cache, "second", "/two") == second);
+    })
+
+    GUNIT_SECTION("releases the type name for reuse", {
+        gunit_assert("type removed", gasset_Cache_unregister(ctx.alloc, ctx.cache, "fake"));
+        gunit_assert("removed name is reusable", gasset__test_register(&ctx, "fake", false));
+    })
 )
 
-GUNIT_TEST(asset_registration_rejects_duplicate,
+GUNIT_TEST(asset_empty_cache,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
 
-    gunit_assert("duplicate type rejected", !gasset__test_register(&ctx, "fake", true));
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("create cache", gasset__test_create(&ctx));
+    })
+
+    GUNIT_SECTION("loading an unknown type fails", {
+        gunit_assert("unknown type does not load", gasset_Cache_load(ctx.alloc, ctx.cache, "missing", "/a") == NULL);
+    })
+
+    GUNIT_SECTION("destruction has nothing to unload", {
+        gasset_Cache_destroy(ctx.alloc, ctx.cache);
+        ctx.cache = NULL;
+        gunit_assert("nothing to unload", ctx.unload_count == 0);
+    })
 )
 
-GUNIT_TEST(asset_registration_rejects_empty_name,
+GUNIT_TEST(asset_load_and_lookup,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create", gasset__test_create(&ctx));
+    gasset__TestFakeAsset* asset = NULL;
 
-    gunit_assert("empty type rejected", !gasset__test_register(&ctx, "", true));
-)
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("register asset type", gasset__test_create_registered(&ctx, true));
+        asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/hero.lua");
+        gunit_assert("asset loaded", asset != NULL);
+    })
 
-GUNIT_TEST(asset_registration_requires_loader,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create", gasset__test_create(&ctx));
+    GUNIT_SECTION("contains the data supplied by the loader", {
+        gunit_assert(
+            "asset contents loaded",
+            asset->text != NULL && strcmp(asset->text, "/assets/hero.lua") == 0
+        );
+        gunit_assert("load ran once", ctx.loads == 1);
+    })
 
-    gunit_assert(
-        "missing load rejected",
-        !gasset_Cache_register(
-            ctx.alloc,
-            ctx.cache,
-            "other",
-            sizeof(gasset__TestFakeAsset),
-            NULL,
-            gasset__test_fake_reload,
-            gasset__test_fake_unload,
-            &ctx
-        )
-    );
-)
+    GUNIT_SECTION("loading the same path reuses the instance", {
+        gunit_assert(
+            "cache hit returns same instance",
+            gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/hero.lua") == asset
+        );
+        gunit_assert("cache hit does not reload", ctx.loads == 1);
+    })
 
-GUNIT_TEST(asset_registration_requires_instance_size,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create", gasset__test_create(&ctx));
+    GUNIT_SECTION("loading a different path creates another instance", {
+        void* second = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/map.lua");
+        gunit_assert(
+            "different paths produce different instances",
+            second != NULL && second != asset && ctx.loads == 2
+        );
+    })
 
-    gunit_assert(
-        "zero instance size rejected",
-        !gasset_Cache_register(
-            ctx.alloc,
-            ctx.cache,
-            "tiny",
-            0,
-            gasset__test_fake_load,
-            gasset__test_fake_reload,
-            gasset__test_fake_unload,
-            &ctx
-        )
-    );
-)
-
-GUNIT_TEST(asset_unknown_type_does_not_load,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create", gasset__test_create(&ctx));
-
-    gunit_assert("unknown type does not load", gasset_Cache_load(ctx.alloc, ctx.cache, "missing", "/a") == NULL);
-)
-
-GUNIT_TEST(asset_empty_cache_has_nothing_to_unload,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create", gasset__test_create(&ctx));
-
-    gasset_Cache_destroy(ctx.alloc, ctx.cache);
-    ctx.cache = NULL;
-    gunit_assert("nothing to unload", ctx.unload_count == 0);
-)
-
-GUNIT_TEST(asset_load_initializes_instance,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-
-    gasset__TestFakeAsset* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/hero.lua");
-    gunit_assert(
-        "asset contents loaded",
-        asset != NULL && asset->text != NULL && strcmp(asset->text, "/assets/hero.lua") == 0
-    );
-    gunit_assert("load ran once", ctx.loads == 1);
-)
-
-GUNIT_TEST(asset_load_reuses_cached_instance,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-
-    void* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/hero.lua");
-    gunit_assert("asset loaded", asset != NULL);
-    gunit_assert(
-        "cache hit returns same instance",
-        gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/hero.lua") == asset
-    );
-    gunit_assert("cache hit does not reload", ctx.loads == 1);
-)
-
-GUNIT_TEST(asset_distinct_paths_have_distinct_instances,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-
-    void* first = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/hero.lua");
-    void* second = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/map.lua");
-    gunit_assert(
-        "different paths produce different instances",
-        first != NULL && second != NULL && second != first && ctx.loads == 2
-    );
-)
-
-GUNIT_TEST(asset_get_and_contains_only_find_loaded_paths,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-
-    void* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/hero.lua");
-    gunit_assert("asset loaded", asset != NULL);
-    gunit_assert("contains finds cached assets", gasset_Cache_contains(ctx.cache, "fake", "/assets/hero.lua"));
-    gunit_assert("get returns cached instance", gasset_Cache_get(ctx.cache, "fake", "/assets/hero.lua") == asset);
-    gunit_assert("contains misses uncached assets", !gasset_Cache_contains(ctx.cache, "fake", "/assets/nope.lua"));
-    gunit_assert("get misses uncached assets", gasset_Cache_get(ctx.cache, "fake", "/assets/nope.lua") == NULL);
+    GUNIT_SECTION("lookup finds only loaded paths", {
+        gunit_assert("contains finds cached assets", gasset_Cache_contains(ctx.cache, "fake", "/assets/hero.lua"));
+        gunit_assert("get returns cached instance", gasset_Cache_get(ctx.cache, "fake", "/assets/hero.lua") == asset);
+        gunit_assert("contains misses uncached assets", !gasset_Cache_contains(ctx.cache, "fake", "/assets/nope.lua"));
+        gunit_assert("get misses uncached assets", gasset_Cache_get(ctx.cache, "fake", "/assets/nope.lua") == NULL);
+    })
 )
 
 GUNIT_TEST(asset_destroy_unloads_in_reverse_load_order,
@@ -264,385 +249,354 @@ GUNIT_TEST(asset_destroy_unloads_in_reverse_load_order,
     gunit_assert("later asset unloaded first", ctx.unload_order[0] == second_id && ctx.unload_order[1] == first_id);
 )
 
-GUNIT_TEST(asset_failed_load_is_not_cached,
+GUNIT_TEST(asset_failed_load,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
 
-    ctx.fail_loads = true;
-    gunit_assert("failed load returns nothing", gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/bad") == NULL);
-    gunit_assert("failed load is not cached", !gasset_Cache_contains(ctx.cache, "fake", "/bad"));
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("register asset type", gasset__test_create_registered(&ctx, true));
+        ctx.fail_loads = true;
+        gunit_assert("initial load fails", gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/bad") == NULL);
+    })
+
+    GUNIT_SECTION("leaves the path uncached", {
+        gunit_assert("failed load is not cached", !gasset_Cache_contains(ctx.cache, "fake", "/bad"));
+    })
+
+    GUNIT_SECTION("retries the loader until the asset is available", {
+        gunit_assert("failed load may be retried", gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/bad") == NULL);
+        gunit_assert("retries reach loader", ctx.load_attempts == 2);
+        ctx.fail_loads = false;
+        gasset__TestFakeAsset* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/bad");
+        gunit_assert("retry succeeds", asset != NULL && ctx.loads == 1 && ctx.load_attempts == 3);
+        const size_t load_id = asset->load_id;
+        gasset_Cache_destroy(ctx.alloc, ctx.cache);
+        ctx.cache = NULL;
+        gunit_assert("only successful asset unloaded", ctx.unload_count == 1 && ctx.unload_order[0] == load_id);
+    })
 )
 
-GUNIT_TEST(asset_failed_load_can_be_retried,
+GUNIT_TEST(asset_reload,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
+    gasset__TestFakeAsset* asset = NULL;
 
-    ctx.fail_loads = true;
-    gunit_assert("initial load fails", gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/bad") == NULL);
-    gunit_assert("failed load may be retried", gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/bad") == NULL);
-    gunit_assert("retries reach loader", ctx.load_attempts == 2);
-    ctx.fail_loads = false;
-    gasset__TestFakeAsset* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/bad");
-    gunit_assert("retry succeeds", asset != NULL && ctx.loads == 1 && ctx.load_attempts == 3);
-    const size_t load_id = asset->load_id;
-    gasset_Cache_destroy(ctx.alloc, ctx.cache);
-    ctx.cache = NULL;
-    gunit_assert("only successful asset unloaded", ctx.unload_count == 1 && ctx.unload_order[0] == load_id);
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("register asset type", gasset__test_create_registered(&ctx, true));
+        asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a");
+        gunit_assert("asset loaded", asset != NULL);
+    })
+
+    GUNIT_SECTION("reload succeeds", {
+        gunit_assert("reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
+        gunit_assert("reload retains instance", gasset_Cache_get(ctx.cache, "fake", "/a") == asset);
+        gunit_assert("reload keeps the asset path", asset->text != NULL && strcmp(asset->text, "/a") == 0);
+        gunit_assert("reload advances the generation", asset->generation == 2);
+        gunit_assert("reload ran once", ctx.reloads == 1 && ctx.loads == 1);
+    })
+
+    GUNIT_SECTION("reload fails", {
+        ctx.fail_reloads = true;
+        gunit_assert("failed reload reported", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
+        gunit_assert("failed reload retains instance", gasset_Cache_get(ctx.cache, "fake", "/a") == asset);
+        gunit_assert("old path preserved", asset->text != NULL && strcmp(asset->text, "/a") == 0);
+        gunit_assert("generation unchanged", asset->generation == 1);
+        gunit_assert("failed reload stays cached", gasset_Cache_contains(ctx.cache, "fake", "/a"));
+    })
+
+    GUNIT_SECTION("rejects an unloaded path", {
+        gunit_assert("reload without load fails", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/missing"));
+    })
 )
 
-GUNIT_TEST(asset_reload_requires_loaded_asset,
+GUNIT_TEST(asset_fallback_reload,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
+    gasset__TestFakeAsset* asset = NULL;
 
-    gunit_assert("reload without load fails", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("register asset type", gasset__test_create_registered(&ctx, false));
+        asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a");
+        gunit_assert("asset loaded", asset != NULL);
+    })
+
+    GUNIT_SECTION("reload succeeds in place", {
+        gunit_assert("fallback reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
+        gunit_assert("fallback unloads and loads", ctx.unloads == 1 && ctx.loads == 2);
+        gunit_assert("instance stays in place", gasset_Cache_get(ctx.cache, "fake", "/a") == asset);
+    })
+
+    GUNIT_SECTION("failed load evicts the stale instance", {
+        ctx.fail_loads = true;
+        gunit_assert("failed fallback reload reported", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
+        gunit_assert("evicted asset is gone", !gasset_Cache_contains(ctx.cache, "fake", "/a"));
+        gunit_assert("stale instance unloaded", ctx.unload_count == 1);
+    })
+
+    GUNIT_SECTION("an evicted path can be loaded again", {
+        gunit_assert("initial reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
+        ctx.fail_loads = true;
+        gunit_assert("failed reload evicts", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
+        ctx.fail_loads = false;
+        gasset__TestFakeAsset* replacement = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a");
+        gunit_assert("evicted path loads again", replacement != NULL && ctx.loads == 3);
+        const size_t load_id = replacement->load_id;
+        gasset_Cache_destroy(ctx.alloc, ctx.cache);
+        ctx.cache = NULL;
+        gunit_assert("surviving instance unloaded last", ctx.unload_count == 3 && ctx.unload_order[2] == load_id);
+    })
 )
 
-GUNIT_TEST(asset_reload_updates_instance_in_place,
+GUNIT_TEST(asset_watch,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
 
-    gasset__TestFakeAsset* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a");
-    gunit_assert("asset loaded", asset != NULL);
-    gunit_assert("reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
-    gunit_assert("reload retains instance", gasset_Cache_get(ctx.cache, "fake", "/a") == asset);
-    gunit_assert("reload updates contents", strcmp(asset->text, "/a") == 0 && asset->generation == 1);
-    gunit_assert("reload ran once", ctx.reloads == 1 && ctx.loads == 1);
-)
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("register asset type", gasset__test_create_registered(&ctx, true));
+        gunit_assert("watch fixture", gasset__test_watch_fixture(&ctx));
+    })
 
-GUNIT_TEST(asset_failed_reload_preserves_contents,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-
-    gasset__TestFakeAsset* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a");
-    gunit_assert("asset loaded", asset != NULL);
-    ctx.fail_reloads = true;
-    gunit_assert("failed reload reported", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
-    gunit_assert("old contents preserved", strcmp(asset->text, "/a") == 0 && asset->generation == 1);
-    gunit_assert("failed reload stays cached", gasset_Cache_contains(ctx.cache, "fake", "/a"));
-)
-
-GUNIT_TEST(asset_watch_rejects_unknown_type,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-    gunit_assert("watch fixture", gasset__test_watch_fixture(&ctx));
-
-    gunit_assert(
-        "unknown mapping rejected",
-        !gasset_Cache_watch(ctx.alloc, ctx.cache, "missing", "/a", ctx.fixture_path)
-    );
-)
-
-GUNIT_TEST(asset_watch_unchanged_file_does_not_reload,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-    gunit_assert("watch fixture", gasset__test_watch_fixture(&ctx));
-
-    gasset_Cache_poll(ctx.alloc, ctx.cache);
-    gunit_assert("unchanged files do not reload", ctx.reloads == 0);
-)
-
-GUNIT_TEST(asset_watch_reload_only_touches_mapped_asset,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-    gunit_assert("watch fixture", gasset__test_watch_fixture(&ctx));
-
-    gunit_assert("write asset", gasset__test_write_asset(ctx.fixture_path, "changed contents"));
-    gasset_Cache_poll(ctx.alloc, ctx.cache);
-    gasset__TestFakeAsset* first = gasset_Cache_get(ctx.cache, "fake", "/a");
-    gasset__TestFakeAsset* second = gasset_Cache_get(ctx.cache, "fake", "/b");
-    gunit_assert("changed file reloads once", ctx.reloads == 1);
-    gunit_assert("mapped asset reloaded", first != NULL && strcmp(first->text, "/a") == 0 && first->generation == 1);
-    gunit_assert("unmapped asset untouched", second != NULL && second->generation == 2 && ctx.loads == 2);
-)
-
-GUNIT_TEST(asset_watch_multiple_files_deduplicates_mappings,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-    gunit_assert("watch fixture", gasset__test_watch_fixture(&ctx));
-
-    gunit_assert(
-        "second native file",
-        gasset_Cache_watch(ctx.alloc, ctx.cache, "fake", "/a", ctx.extra_fixture_path)
-    );
-    gunit_assert(
-        "duplicate watch accepted",
-        gasset_Cache_watch(ctx.alloc, ctx.cache, "fake", "/a", ctx.extra_fixture_path)
-    );
-    gunit_assert("write asset", gasset__test_write_asset(ctx.extra_fixture_path, "second changed contents"));
-    gasset_Cache_poll(ctx.alloc, ctx.cache);
-    gunit_assert("second native file reloads once", ctx.reloads == 1);
-)
-
-GUNIT_TEST(asset_unregister_removes_all_watch_mappings,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, true));
-    gunit_assert("watch fixture", gasset__test_watch_fixture(&ctx));
-
-    gunit_assert(
-        "second native file",
-        gasset_Cache_watch(ctx.alloc, ctx.cache, "fake", "/a", ctx.extra_fixture_path)
-    );
-    gunit_assert("type unregistered", gasset_Cache_unregister(ctx.alloc, ctx.cache, "fake"));
-    gunit_assert("write asset", gasset__test_write_asset(ctx.fixture_path, "changed after unregister"));
-    gunit_assert("write asset", gasset__test_write_asset(ctx.extra_fixture_path, "changed after unregister"));
-    gasset_Cache_poll(ctx.alloc, ctx.cache);
-    gunit_assert("unregister removed every mapping", ctx.reloads == 0 && ctx.unload_count == 2);
-)
-
-GUNIT_TEST(asset_fallback_reload_keeps_instance,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, false));
-
-    void* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a");
-    gunit_assert("asset loaded", asset != NULL);
-    gunit_assert("fallback reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
-    gunit_assert("fallback unloads and loads", ctx.unloads == 1 && ctx.loads == 2);
-    gunit_assert("instance stays in place", gasset_Cache_get(ctx.cache, "fake", "/a") == asset);
-)
-
-GUNIT_TEST(asset_failed_fallback_reload_evicts_stale_instance,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, false));
-
-    gunit_assert("asset loaded", gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a") != NULL);
-    ctx.fail_loads = true;
-    gunit_assert("failed fallback reload reported", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
-    gunit_assert("evicted asset is gone", !gasset_Cache_contains(ctx.cache, "fake", "/a"));
-    gunit_assert("stale instance unloaded", ctx.unload_count == 1);
-)
-
-GUNIT_TEST(asset_evicted_fallback_path_can_load_again,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create registered", gasset__test_create_registered(&ctx, false));
-
-    gunit_assert("asset loaded", gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a") != NULL);
-    gunit_assert("initial reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
-    ctx.fail_loads = true;
-    gunit_assert("failed reload evicts", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
-    ctx.fail_loads = false;
-    gasset__TestFakeAsset* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a");
-    gunit_assert("evicted path loads again", asset != NULL && ctx.loads == 3);
-    const size_t load_id = asset->load_id;
-    gasset_Cache_destroy(ctx.alloc, ctx.cache);
-    ctx.cache = NULL;
-    gunit_assert("surviving instance unloaded last", ctx.unload_count == 3 && ctx.unload_order[2] == load_id);
-)
-
-GUNIT_TEST(asset_reentrant_load_retains_dependencies,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create reentrant", gasset__test_create_reentrant(&ctx, false, false));
-
-    ctx.reentrant.trigger = true;
-    int* main = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
-    gunit_assert("reentrant initial load", main != NULL && *main == 42 && ctx.reentrant.callbacks == 1);
-    gunit_assert("dependency retained", gasset_Cache_get(ctx.cache, "outer", "dep1-2") != NULL);
-)
-
-GUNIT_TEST(asset_reentrant_fallback_reload_keeps_instance,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create reentrant", gasset__test_create_reentrant(&ctx, false, false));
-
-    ctx.reentrant.trigger = true;
-    void* main = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
-    gunit_assert("initial load", main != NULL);
-    gunit_assert("fallback reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "outer", "main"));
-    gunit_assert("instance retained", gasset_Cache_get(ctx.cache, "outer", "main") == main);
-)
-
-GUNIT_TEST(asset_reentrant_failed_reload_preserves_dependencies,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create reentrant", gasset__test_create_reentrant(&ctx, false, false));
-
-    ctx.reentrant.trigger = true;
-    gunit_assert("initial load", gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main") != NULL);
-    ctx.reentrant.fail = true;
-    gunit_assert("fallback reload fails", !gasset_Cache_reload(ctx.alloc, ctx.cache, "outer", "main"));
-    gunit_assert("failed entry evicted", gasset_Cache_get(ctx.cache, "outer", "main") == NULL);
-    gunit_assert("dependencies survive", gasset_Cache_get(ctx.cache, "outer", "dep2-2") != NULL);
-)
-
-GUNIT_TEST(asset_reentrant_failed_initial_load_can_retry,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create reentrant", gasset__test_create_reentrant(&ctx, false, false));
-
-    ctx.reentrant.trigger = true;
-    ctx.reentrant.fail = true;
-    gunit_assert("initial load fails", gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main") == NULL);
-    ctx.reentrant.fail = false;
-    gunit_assert("retry succeeds", gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main") != NULL);
-)
-
-GUNIT_TEST(asset_reentrant_custom_reload_failure_retains_entry,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create reentrant", gasset__test_create_reentrant(&ctx, true, false));
-
-    int* main = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
-    gunit_assert("initial load", main != NULL);
-    ctx.reentrant.fail = true;
-    gunit_assert("custom reload fails", !gasset_Cache_reload(ctx.alloc, ctx.cache, "outer", "main"));
-    gunit_assert("failure retains entry", gasset_Cache_get(ctx.cache, "outer", "main") == main);
-)
-
-GUNIT_TEST(asset_reentrant_custom_reload_updates_instance,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create reentrant", gasset__test_create_reentrant(&ctx, true, false));
-
-    int* main = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
-    gunit_assert("initial load", main != NULL);
-    gunit_assert("custom reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "outer", "main"));
-    gunit_assert("custom reload updates instance", *main == 99);
-)
-
-GUNIT_TEST(asset_reentrant_load_handles_optional_allocation_failure,
-    gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create reentrant", gasset__test_create_reentrant(&ctx, false, true));
-
-    ctx.reentrant.trigger = true;
-    ctx.reentrant.fail_realloc = &ctx.allocations.fail_realloc;
-    int* main = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
-    if (main == NULL) {
-        gunit_assert("failure follows an allocation denial", ctx.allocations.denied > 0);
-        gunit_assert("loaded instance cleaned up", ctx.reentrant.unloads == 1);
-        gunit_assert("failed instance not cached", gasset_Cache_get(ctx.cache, "outer", "main") == NULL);
-    } else {
+    GUNIT_SECTION("rejects an unknown type", {
         gunit_assert(
-            "successful load retains its instance",
-            *main == 42 && gasset_Cache_get(ctx.cache, "outer", "main") == main
+            "unknown mapping rejected",
+            !gasset_Cache_watch(ctx.alloc, ctx.cache, "missing", "/a", ctx.fixture_path)
         );
-        gunit_assert("cached instance remains owned", ctx.reentrant.unloads == 0);
-    }
-    gunit_assert("reentrant dependency survives", gasset_Cache_get(ctx.cache, "outer", "dep1-2") != NULL);
-    ctx.allocations.fail_realloc = false;
-    gunit_assert("type can be unloaded", gasset_Cache_unregister(ctx.alloc, ctx.cache, "outer"));
-    gunit_assert("each loaded instance unloaded once", ctx.reentrant.unloads == 4);
+    })
+
+    GUNIT_SECTION("an unchanged file does not trigger reload", {
+        gasset_Cache_poll(ctx.alloc, ctx.cache);
+        gunit_assert("unchanged files do not reload", ctx.reloads == 0);
+    })
+
+    GUNIT_SECTION("a changed file reloads only its mapped asset", {
+        gunit_assert("write asset", gasset__test_write_asset(ctx.fixture_path, "changed contents"));
+        gasset_Cache_poll(ctx.alloc, ctx.cache);
+        gasset__TestFakeAsset* first = gasset_Cache_get(ctx.cache, "fake", "/a");
+        gasset__TestFakeAsset* second = gasset_Cache_get(ctx.cache, "fake", "/b");
+        gunit_assert("changed file reloads once", ctx.reloads == 1);
+        gunit_assert(
+            "mapped asset reloaded",
+            first != NULL && first->text != NULL && strcmp(first->text, "/a") == 0 && first->generation == 2
+        );
+        gunit_assert("unmapped asset untouched", second != NULL && second->generation == 1 && ctx.loads == 2);
+    })
+
+    GUNIT_SECTION("watching a second file twice reloads the asset once", {
+        gunit_assert(
+            "second native file",
+            gasset_Cache_watch(ctx.alloc, ctx.cache, "fake", "/a", ctx.extra_fixture_path)
+        );
+        gunit_assert(
+            "duplicate watch accepted",
+            gasset_Cache_watch(ctx.alloc, ctx.cache, "fake", "/a", ctx.extra_fixture_path)
+        );
+        gunit_assert("write asset", gasset__test_write_asset(ctx.extra_fixture_path, "second changed contents"));
+        gasset_Cache_poll(ctx.alloc, ctx.cache);
+        gunit_assert("second native file reloads once", ctx.reloads == 1);
+    })
+
+    GUNIT_SECTION("unregistering the type removes all its mappings", {
+        gunit_assert(
+            "second native file",
+            gasset_Cache_watch(ctx.alloc, ctx.cache, "fake", "/a", ctx.extra_fixture_path)
+        );
+        gunit_assert("type unregistered", gasset_Cache_unregister(ctx.alloc, ctx.cache, "fake"));
+        gunit_assert("write asset", gasset__test_write_asset(ctx.fixture_path, "changed after unregister"));
+        gunit_assert("write asset", gasset__test_write_asset(ctx.extra_fixture_path, "changed after unregister"));
+        gasset_Cache_poll(ctx.alloc, ctx.cache);
+        gunit_assert("unregister removed every mapping", ctx.reloads == 0 && ctx.unload_count == 2);
+    })
 )
 
-GUNIT_TEST(asset_reentrant_load_can_retry_after_optional_allocation_failure,
+GUNIT_TEST(asset_reentrant_load,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create reentrant", gasset__test_create_reentrant(&ctx, false, true));
 
-    ctx.reentrant.trigger = true;
-    ctx.reentrant.fail_realloc = &ctx.allocations.fail_realloc;
-    void* main = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
-    if (main == NULL) {
-        gunit_assert("failure follows an allocation denial", ctx.allocations.denied > 0);
-        gunit_assert("failed instance cleaned up", ctx.reentrant.unloads == 1);
-    }
-    ctx.allocations.fail_realloc = false;
-    ctx.reentrant.fail_realloc = NULL;
-    ctx.reentrant.trigger = false;
-    void* retried = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
-    gunit_assert("path remains loadable", retried != NULL);
-    gunit_assert("successful prior load remains cached", main == NULL || retried == main);
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("create reentrant cache", gasset__test_create_reentrant(&ctx, false, false));
+        ctx.reentrant.trigger = true;
+    })
+
+    GUNIT_SECTION("retains dependencies loaded in the callback", {
+        int* primary = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
+        gunit_assert("reentrant initial load", primary != NULL && *primary == 42 && ctx.reentrant.callbacks == 1);
+        gunit_assert("dependency retained", gasset_Cache_get(ctx.cache, "outer", "dep1-2") != NULL);
+    })
+
+    GUNIT_SECTION("a failed initial load can be retried", {
+        ctx.reentrant.fail = true;
+        gunit_assert("initial load fails", gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main") == NULL);
+        ctx.reentrant.fail = false;
+        gunit_assert("retry succeeds", gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main") != NULL);
+    })
+
+    GUNIT_SECTION("fallback reload keeps the original instance", {
+        void* primary = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
+        gunit_assert("initial load", primary != NULL);
+        gunit_assert("fallback reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "outer", "main"));
+        gunit_assert("instance retained", gasset_Cache_get(ctx.cache, "outer", "main") == primary);
+    })
+
+    GUNIT_SECTION("failed fallback reload preserves dependencies", {
+        gunit_assert("initial load", gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main") != NULL);
+        ctx.reentrant.fail = true;
+        gunit_assert("fallback reload fails", !gasset_Cache_reload(ctx.alloc, ctx.cache, "outer", "main"));
+        gunit_assert("failed entry evicted", gasset_Cache_get(ctx.cache, "outer", "main") == NULL);
+        gunit_assert("dependencies survive", gasset_Cache_get(ctx.cache, "outer", "dep2-2") != NULL);
+    })
 )
 
-GUNIT_TEST(asset_module_creates_owned_services,
+GUNIT_TEST(asset_reentrant_custom_reload,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create modules", gasset__test_create_modules(&ctx));
+    int* primary = NULL;
 
-    gmod_Module assets = gasset_module();
-    gunit_assert("import assets", gmod_Modules_import(ctx.alloc, ctx.modules, assets));
-    gunit_assert("load dependencies", gmod_Modules_load(ctx.alloc, ctx.modules));
-    gvfsmod_Service* vfs = gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gvfsmod_Service));
-    gasset_Service* asset = gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gasset_Service));
-    gunit_assert("owned VFS", vfs != NULL && vfs->vfs != NULL && vfs->module_owned);
-    gunit_assert("owned cache", asset != NULL && asset->cache != NULL && asset->module_owned);
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("create reentrant cache", gasset__test_create_reentrant(&ctx, true, false));
+        primary = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
+        gunit_assert("initial load", primary != NULL);
+    })
+
+    GUNIT_SECTION("successful reload updates the instance", {
+        gunit_assert("custom reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "outer", "main"));
+        gunit_assert("custom reload updates instance", *primary == 99);
+    })
+
+    GUNIT_SECTION("failed reload retains the entry", {
+        ctx.reentrant.fail = true;
+        gunit_assert("custom reload fails", !gasset_Cache_reload(ctx.alloc, ctx.cache, "outer", "main"));
+        gunit_assert("failure retains entry", gasset_Cache_get(ctx.cache, "outer", "main") == primary);
+    })
 )
 
-GUNIT_TEST(asset_module_unloads_before_vfs,
+GUNIT_TEST(asset_reentrant_allocation_failure,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create modules", gasset__test_create_modules(&ctx));
+    int* primary = NULL;
 
-    gmod_Module assets = gasset_module();
-    gunit_assert("import assets", gmod_Modules_import(ctx.alloc, ctx.modules, assets));
-    gunit_assert("load dependencies", gmod_Modules_load(ctx.alloc, ctx.modules));
-    gecs_Component vt = GECS_CONTEXT(ctx.world, gvfsmod_Service);
-    gecs_Component at = GECS_CONTEXT(ctx.world, gasset_Service);
-    gasset_Service* service = gecs_context_get(ctx.world, at);
-    gunit_assert("asset service exists", service != NULL);
-    ctx.module_state = (gasset__TestModuleState) {.world = ctx.world, .vfs_type = vt};
-    gunit_assert(
-        "register lifetime observer",
-        gasset_Cache_register(
-            ctx.alloc,
-            service->cache,
-            "module-test",
-            sizeof(int),
-            gasset__test_module_load,
-            NULL,
-            gasset__test_module_unload,
-            &ctx.module_state
-        )
-    );
-    gunit_assert("load observed asset", gasset_Cache_load(ctx.alloc, service->cache, "module-test", "item") != NULL);
-    gmod_Modules_update(ctx.alloc, ctx.modules);
-    gunit_assert("unload dependencies", gmod_Modules_unload(ctx.alloc, ctx.modules));
-    gunit_assert("asset unloaded while VFS alive", ctx.module_state.unloaded == 1);
-    gunit_assert(
-        "owned services removed",
-        gecs_context_get(ctx.world, vt) == NULL && gecs_context_get(ctx.world, at) == NULL
-    );
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("create reentrant cache", gasset__test_create_reentrant(&ctx, false, true));
+        ctx.reentrant.trigger = true;
+        ctx.reentrant.fail_realloc = &ctx.allocations.fail_realloc;
+        primary = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
+    })
+
+    GUNIT_SECTION("unregister unloads each instance once", {
+        if (primary == NULL) {
+            gunit_assert("failure follows an allocation denial", ctx.allocations.denied > 0);
+            gunit_assert("loaded instance cleaned up", ctx.reentrant.unloads == 1);
+            gunit_assert("failed instance not cached", gasset_Cache_get(ctx.cache, "outer", "main") == NULL);
+        } else {
+            gunit_assert(
+                "successful load retains its instance",
+                *primary == 42 && gasset_Cache_get(ctx.cache, "outer", "main") == primary
+            );
+            gunit_assert("cached instance remains owned", ctx.reentrant.unloads == 0);
+        }
+        gunit_assert("reentrant dependency survives", gasset_Cache_get(ctx.cache, "outer", "dep1-2") != NULL);
+        ctx.allocations.fail_realloc = false;
+        gunit_assert("type can be unloaded", gasset_Cache_unregister(ctx.alloc, ctx.cache, "outer"));
+        gunit_assert("each loaded instance unloaded once", ctx.reentrant.unloads == 4);
+    })
+
+    GUNIT_SECTION("the path can still be loaded", {
+        ctx.allocations.fail_realloc = false;
+        ctx.reentrant.fail_realloc = NULL;
+        ctx.reentrant.trigger = false;
+        void* retried = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
+        gunit_assert("path remains loadable", retried != NULL);
+        gunit_assert("successful prior load remains cached", primary == NULL || retried == primary);
+    })
 )
 
-GUNIT_TEST(asset_module_preserves_borrowed_services,
+GUNIT_TEST(asset_module_owned_services,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create modules", gasset__test_create_modules(&ctx));
 
-    ctx.host_vfs.vfs = gvfs_create(ctx.alloc);
-    ctx.host_assets.cache = ctx.cache;
-    gecs_Component vt = GECS_CONTEXT(ctx.world, gvfsmod_Service);
-    gecs_Component at = GECS_CONTEXT(ctx.world, gasset_Service);
-    gunit_assert("provide VFS", ctx.host_vfs.vfs != NULL && gecs_context_set(ctx.world, vt, &ctx.host_vfs) != NULL);
-    gunit_assert("provide cache", gecs_context_set(ctx.world, at, &ctx.host_assets) != NULL);
-    gmod_Module assets = gasset_module();
-    gunit_assert("import assets", gmod_Modules_import(ctx.alloc, ctx.modules, assets));
-    gunit_assert("borrow services", gmod_Modules_load(ctx.alloc, ctx.modules));
-    gunit_assert("unload module", gmod_Modules_unload(ctx.alloc, ctx.modules));
-    gunit_assert(
-        "borrowed VFS preserved",
-        ((gvfsmod_Service*)gecs_context_get(ctx.world, vt))->vfs == ctx.host_vfs.vfs
-    );
-    gunit_assert("borrowed cache preserved", ((gasset_Service*)gecs_context_get(ctx.world, at))->cache == ctx.cache);
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("create modules", gasset__test_create_modules(&ctx));
+        gmod_Module assets = gasset_module();
+        gunit_assert("import assets", gmod_Modules_import(ctx.alloc, ctx.modules, assets));
+        gunit_assert("load dependencies", gmod_Modules_load(ctx.alloc, ctx.modules));
+    })
+
+    GUNIT_SECTION("publishes its own VFS and cache", {
+        gvfsmod_Service* vfs = gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gvfsmod_Service));
+        gasset_Service* asset = gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gasset_Service));
+        gunit_assert("owned VFS", vfs != NULL && vfs->vfs != NULL && vfs->module_owned);
+        gunit_assert("owned cache", asset != NULL && asset->cache != NULL && asset->module_owned);
+    })
+
+    GUNIT_SECTION("unloads assets while the VFS is still alive", {
+        gecs_Component vfs_type = GECS_CONTEXT(ctx.world, gvfsmod_Service);
+        gecs_Component assets_type = GECS_CONTEXT(ctx.world, gasset_Service);
+        gasset_Service* service = gecs_context_get(ctx.world, assets_type);
+        gunit_assert("asset service exists", service != NULL);
+        ctx.module_state = (gasset__TestModuleState) {.world = ctx.world, .vfs_type = vfs_type};
+        gunit_assert(
+            "register lifetime observer",
+            gasset_Cache_register(
+                ctx.alloc,
+                service->cache,
+                "module-test",
+                sizeof(int),
+                gasset__test_module_load,
+                NULL,
+                gasset__test_module_unload,
+                &ctx.module_state
+            )
+        );
+        gunit_assert(
+            "load observed asset",
+            gasset_Cache_load(ctx.alloc, service->cache, "module-test", "item") != NULL
+        );
+        gmod_Modules_update(ctx.alloc, ctx.modules);
+        gunit_assert("unload dependencies", gmod_Modules_unload(ctx.alloc, ctx.modules));
+        gunit_assert("asset unloaded while VFS alive", ctx.module_state.unloaded == 1);
+        gunit_assert(
+            "owned services removed",
+            gecs_context_get(ctx.world, vfs_type) == NULL && gecs_context_get(ctx.world, assets_type) == NULL
+        );
+    })
 )
 
-GUNIT_TEST(asset_module_invalid_host_rolls_back_dependency,
+GUNIT_TEST(asset_module_host_services,
     gasset__TestContext ctx = {0};
-    gunit_defer(gasset__test_destroy, &ctx);
-    gunit_assert("create modules", gasset__test_create_modules(&ctx));
 
-    gecs_Component at = GECS_CONTEXT(ctx.world, gasset_Service);
-    gunit_assert("set invalid cache", gecs_context_set(ctx.world, at, &ctx.host_assets) != NULL);
-    gmod_Module assets = gasset_module();
-    gunit_assert("import assets", gmod_Modules_import(ctx.alloc, ctx.modules, assets));
-    gunit_assert("invalid host cache fails", !gmod_Modules_load(ctx.alloc, ctx.modules));
-    gunit_assert(
-        "dependency rolled back",
-        gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gvfsmod_Service)) == NULL
-    );
+    GUNIT_SETUP({
+        gunit_defer(gasset__test_destroy, &ctx);
+        gunit_assert("create modules", gasset__test_create_modules(&ctx));
+    })
+
+    GUNIT_SECTION("preserves borrowed services on unload", {
+        ctx.host_vfs.vfs = gvfs_create(ctx.alloc);
+        ctx.host_assets.cache = ctx.cache;
+        gecs_Component vfs_type = GECS_CONTEXT(ctx.world, gvfsmod_Service);
+        gecs_Component assets_type = GECS_CONTEXT(ctx.world, gasset_Service);
+        gunit_assert("create host VFS", ctx.host_vfs.vfs != NULL);
+        gunit_assert("provide VFS", gecs_context_set(ctx.world, vfs_type, &ctx.host_vfs) != NULL);
+        gunit_assert("provide cache", gecs_context_set(ctx.world, assets_type, &ctx.host_assets) != NULL);
+        gmod_Module assets = gasset_module();
+        gunit_assert("import assets", gmod_Modules_import(ctx.alloc, ctx.modules, assets));
+        gunit_assert("borrow services", gmod_Modules_load(ctx.alloc, ctx.modules));
+        gunit_assert("unload module", gmod_Modules_unload(ctx.alloc, ctx.modules));
+        gvfsmod_Service* vfs = gecs_context_get(ctx.world, vfs_type);
+        gasset_Service* assets_service = gecs_context_get(ctx.world, assets_type);
+        gunit_assert("borrowed VFS preserved", vfs != NULL && vfs->vfs == ctx.host_vfs.vfs);
+        gunit_assert("borrowed cache preserved", assets_service != NULL && assets_service->cache == ctx.cache);
+    })
+
+    GUNIT_SECTION("rolls back the VFS dependency for an invalid host cache", {
+        gecs_Component assets_type = GECS_CONTEXT(ctx.world, gasset_Service);
+        gunit_assert("set invalid cache", gecs_context_set(ctx.world, assets_type, &ctx.host_assets) != NULL);
+        gmod_Module assets = gasset_module();
+        gunit_assert("import assets", gmod_Modules_import(ctx.alloc, ctx.modules, assets));
+        gunit_assert("invalid host cache fails", !gmod_Modules_load(ctx.alloc, ctx.modules));
+        gunit_assert(
+            "dependency rolled back",
+            gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gvfsmod_Service)) == NULL
+        );
+    })
 )
 
 gunit_main();
@@ -650,11 +604,7 @@ gunit_main();
 static bool gasset__test_create(gasset__TestContext* ctx) {
     ctx->alloc = galloc_malloc_allocator();
     ctx->cache = gasset_Cache_create(ctx->alloc);
-    if (!gunit_check("cache created", ctx->cache != NULL)) {
-        return false;
-    }
-
-    return true;
+    return gunit_check("cache created", ctx->cache != NULL);
 }
 
 static bool gasset__test_register(gasset__TestContext* ctx, const char* name, bool reload) {
@@ -674,11 +624,7 @@ static bool gasset__test_create_registered(gasset__TestContext* ctx, bool reload
     if (!gasset__test_create(ctx)) {
         return false;
     }
-    if (!gunit_check("register fake asset type", gasset__test_register(ctx, "fake", reload))) {
-        return false;
-    }
-
-    return true;
+    return gunit_check("register fake asset type", gasset__test_register(ctx, "fake", reload));
 }
 
 static bool gasset__test_create_reentrant(gasset__TestContext* ctx, bool reload, bool failing) {
@@ -695,23 +641,19 @@ static bool gasset__test_create_reentrant(gasset__TestContext* ctx, bool reload,
     if (!gunit_check("cache created", ctx->cache != NULL)) {
         return false;
     }
-    if (!gunit_check(
-            "register reentrant asset type",
-            gasset_Cache_register(
-                ctx->alloc,
-                ctx->cache,
-                "outer",
-                sizeof(int),
-                gasset__test_reentrant_load,
-                reload ? gasset__test_reentrant_reload : NULL,
-                gasset__test_reentrant_unload,
-                &ctx->reentrant
-            )
-        )) {
-        return false;
-    }
-
-    return true;
+    return gunit_check(
+        "register reentrant asset type",
+        gasset_Cache_register(
+            ctx->alloc,
+            ctx->cache,
+            "outer",
+            sizeof(int),
+            gasset__test_reentrant_load,
+            reload ? gasset__test_reentrant_reload : NULL,
+            gasset__test_reentrant_unload,
+            &ctx->reentrant
+        )
+    );
 }
 
 static bool gasset__test_create_modules(gasset__TestContext* ctx) {
@@ -723,11 +665,7 @@ static bool gasset__test_create_modules(gasset__TestContext* ctx) {
         return false;
     }
     ctx->modules = gmod_Modules_new(ctx->world);
-    if (!gunit_check("module registry created", ctx->modules != NULL)) {
-        return false;
-    }
-
-    return true;
+    return gunit_check("module registry created", ctx->modules != NULL);
 }
 
 static bool gasset__test_create_fixture_dir(gasset__TestContext* ctx) {
@@ -769,20 +707,13 @@ static bool gasset__test_watch_fixture(gasset__TestContext* ctx) {
     if (!gasset__test_write_asset(ctx->extra_fixture_path, "one")) {
         return false;
     }
-    if (!gunit_check(
-            "watch fixture",
-            gasset_Cache_watch(ctx->alloc, ctx->cache, "fake", "/a", ctx->fixture_path)
-        )) {
+    if (!gunit_check("watch fixture", gasset_Cache_watch(ctx->alloc, ctx->cache, "fake", "/a", ctx->fixture_path))) {
         return false;
     }
     if (!gunit_check("load watched asset", gasset_Cache_load(ctx->alloc, ctx->cache, "fake", "/a") != NULL)) {
         return false;
     }
-    if (!gunit_check("load unwatched asset", gasset_Cache_load(ctx->alloc, ctx->cache, "fake", "/b") != NULL)) {
-        return false;
-    }
-
-    return true;
+    return gunit_check("load unwatched asset", gasset_Cache_load(ctx->alloc, ctx->cache, "fake", "/b") != NULL);
 }
 
 static void gasset__test_destroy(void* user) {
@@ -829,7 +760,7 @@ static bool gasset__test_fake_load(galloc_Allocator alloc, void* instance, const
     memcpy(asset->text, path, length + 1);
     ctx->loads += 1;
     asset->load_id = ctx->loads;
-    asset->generation = asset->load_id;
+    asset->generation = 1;
     return true;
 }
 
@@ -844,7 +775,7 @@ static bool gasset__test_fake_reload(galloc_Allocator alloc, void* instance, con
     gasset__TestFakeAsset* asset = instance;
     memcpy(asset->text, path, strlen(path) + 1);
     ctx->reloads += 1;
-    asset->generation = ctx->reloads;
+    asset->generation += 1;
     return true;
 }
 
@@ -869,11 +800,7 @@ static bool gasset__test_write_asset(const char* path, const char* data) {
     if (!gunit_check("write fixture contents", written == strlen(data))) {
         return false;
     }
-    if (!gunit_check("close fixture", closed == 0)) {
-        return false;
-    }
-
-    return true;
+    return gunit_check("close fixture", closed == 0);
 }
 
 static bool gasset__test_reentrant_work(galloc_Allocator alloc, const char* path, gasset__TestReentrantContext* ctx) {

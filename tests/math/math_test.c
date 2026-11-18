@@ -1,14 +1,15 @@
 #include <glint/math/color.h>
-#include <glint/math/rect.h>
 #include <glint/math/vec2.h>
 #include <glint/unit/unit.h>
+
+#include <math.h>
 
 static bool gmath__test_color_matches(gcolor_Color a, gcolor_Color b);
 
 GUNIT_TEST(named_colors,
-    gunit_assert("black", gmath__test_color_matches(GCOLOR_BLACK, (gcolor_Color) {0, 0, 0, 255}));
-    gunit_assert("blank", gmath__test_color_matches(GCOLOR_BLANK, (gcolor_Color) {0, 0, 0, 0}));
-    gunit_assert("white", gmath__test_color_matches(GCOLOR_WHITE, (gcolor_Color) {255, 255, 255, 255}));
+    gunit_assert("black is opaque", gmath__test_color_matches(GCOLOR_BLACK, (gcolor_Color) {.a = 255}));
+    gunit_assert("blank is transparent black", gmath__test_color_matches(GCOLOR_BLANK, (gcolor_Color) {0}));
+    gunit_assert("white is opaque", gmath__test_color_matches(GCOLOR_WHITE, (gcolor_Color) {255, 255, 255, 255}));
 )
 
 GUNIT_TEST(color_from_hex,
@@ -64,7 +65,7 @@ GUNIT_TEST(vec2_scale_by_zero,
 
 GUNIT_TEST(vec2_length,
     float length = gvec2_length((gvec2_Vec2) {3, 4});
-    gunit_assert("3-4-5 length", length - 5.0f < 1e-6f && 5.0f - length < 1e-6f);
+    gunit_assert("3-4 vector has length 5", fabsf(length - 5.0f) < 1e-6f);
 )
 
 GUNIT_TEST(vec2_zero_length,
@@ -76,7 +77,7 @@ GUNIT_TEST(vec2_normalize,
     gunit_assert("normalize succeeds", gvec2_normalize((gvec2_Vec2) {3, 4}, &unit));
     gunit_assert("normalized components", unit.x == 0.6f && unit.y == 0.8f);
     float length = gvec2_length(unit);
-    gunit_assert("normalized length", length - 1.0f < 1e-6f && 1.0f - length < 1e-6f);
+    gunit_assert("normalized vector has unit length", fabsf(length - 1.0f) < 1e-6f);
 )
 
 GUNIT_TEST(vec2_normalize_rejects_zero,

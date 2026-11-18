@@ -41,30 +41,39 @@ void SetTraceLogLevel(int level) {
     (void)level;
 }
 
-GUNIT_TEST(open_initializes_backend_with_requested_buffer,
-    gplatform_audio__Context ctx = {.initialization_succeeds = true};
-    gplatform_audio__current = &ctx;
-    gunit_defer(gplatform_audio__free, &ctx);
-    gplatform_audio_open(512);
-    gunit_assert("requested buffer forwarded", ctx.buffer_size == 512);
-    gunit_assert("backend initialized", ctx.opens == 1 && gplatform_audio_ready());
-)
-
-GUNIT_TEST(readiness_reports_failed_backend_initialization,
+GUNIT_TEST(audio_device,
     gplatform_audio__Context ctx = {0};
-    gplatform_audio__current = &ctx;
-    gunit_defer(gplatform_audio__free, &ctx);
-    gplatform_audio_open(512);
-    gunit_assert("failed backend remains unavailable", ctx.opens == 1 && !gplatform_audio_ready());
-)
 
-GUNIT_TEST(close_releases_backend_device,
-    gplatform_audio__Context ctx = {.initialization_succeeds = true};
-    gplatform_audio__current = &ctx;
-    gunit_defer(gplatform_audio__free, &ctx);
-    gplatform_audio_open(512);
-    gplatform_audio_close();
-    gunit_assert("backend closed", ctx.closes == 1 && !gplatform_audio_ready());
+    GUNIT_SETUP({
+        gplatform_audio__current = &ctx;
+        gunit_defer(gplatform_audio__free, &ctx);
+    })
+
+    GUNIT_SECTION("successful initialization applies the requested buffer size", {
+        ctx.initialization_succeeds = true;
+        gplatform_audio_open(512);
+
+        gunit_assert("requested buffer forwarded", ctx.buffer_size == 512);
+        gunit_assert("backend initializes exactly once", ctx.opens == 1);
+        gunit_assert("backend reports ready", gplatform_audio_ready());
+    })
+
+    GUNIT_SECTION("failed initialization leaves the device unavailable", {
+        gplatform_audio_open(512);
+
+        gunit_assert("backend attempts initialization once", ctx.opens == 1);
+        gunit_assert("backend remains unavailable", !gplatform_audio_ready());
+    })
+
+    GUNIT_SECTION("closing the device releases the backend", {
+        ctx.initialization_succeeds = true;
+        gplatform_audio_open(512);
+        gunit_assert("backend reports ready before closing", gplatform_audio_ready());
+
+        gplatform_audio_close();
+        gunit_assert("backend closes exactly once", ctx.closes == 1);
+        gunit_assert("closed backend reports unavailable", !gplatform_audio_ready());
+    })
 )
 
 gunit_main();

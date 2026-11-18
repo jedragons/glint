@@ -10,7 +10,6 @@
 #include <lauxlib.h>
 #include <lua.h>
 
-#include <stdio.h>
 #include <string.h>
 
 static float gtime__test_frame_time(void* user);
@@ -34,174 +33,182 @@ static bool gtime__test_create(gtime__TestContext* context, bool rebind);
 static void gtime__test_free(void* user);
 static bool gtime__test_run(gtime__TestContext* context, const char* source);
 
-GUNIT_TEST(lua_repeating_timer_uses_host_delta,
+GUNIT_TEST(lua_timer_components,
     gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, false));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(
-            &context,
-            "Timer.set(e, 2, TimerMode.repeating); assert(Timer.has(e)); local t=Timer.get(e); assert(t:tick().elapsed==.5); assert(not t:tick().is_finished); assert(t:tick(1).is_finished and t.times_finished_this_tick==1); assert(t:tick(.5).elapsed==.5)"
-        )
-    );
+
+    GUNIT_SETUP({
+        gunit_defer(gtime__test_free, &context);
+        gunit_assert("bind time API", gtime__test_create(&context, false));
+    })
+
+    GUNIT_SECTION("ticks with host and explicit deltas", {
+        const char* source =
+            "Timer.set(e, 2, TimerMode.repeating)\n"
+            "assert(Timer.has(e))\n"
+            "local timer = Timer.get(e)\n"
+            "assert(timer:tick().elapsed == 0.5)\n"
+            "assert(not timer:tick().is_finished)\n"
+            "assert(timer:tick(1).is_finished)\n"
+            "assert(timer.times_finished_this_tick == 1)\n"
+            "assert(timer:tick(0.5).elapsed == 0.5)\n";
+        gunit_assert("ticks with host and explicit deltas", gtime__test_run(&context, source));
+    })
+
+    GUNIT_SECTION("keeps elapsed time while paused", {
+        const char* source =
+            "local timer = Timer.set(e, 2, TimerMode.repeating)\n"
+            "timer:tick(0.5)\n"
+            "timer:pause():tick(3)\n"
+            "assert(timer.is_paused)\n"
+            "assert(timer.elapsed == 0.5)\n";
+        gunit_assert("keeps elapsed time while paused", gtime__test_run(&context, source));
+    })
+
+    GUNIT_SECTION("updates progress when its properties change", {
+        const char* source =
+            "local timer = Timer.set(e, 2, TimerMode.repeating)\n"
+            "timer:pause():unpause()\n"
+            "timer.elapsed = 1\n"
+            "timer.duration = 4\n"
+            "timer.mode = TimerMode.once\n"
+            "assert(timer.remaining == 3)\n"
+            "assert(timer.fraction == 0.25)\n";
+        gunit_assert("updates progress when its properties change", gtime__test_run(&context, source));
+    })
+
+    GUNIT_SECTION("invalidates references when removed", {
+        const char* source =
+            "local timer = Timer.set(e, 2, TimerMode.once)\n"
+            "Timer.remove(e)\n"
+            "assert(not Timer.has(e))\n"
+            "assert(not pcall(function() return timer.elapsed end))\n";
+        gunit_assert("invalidates references when removed", gtime__test_run(&context, source));
+    })
 )
 
-GUNIT_TEST(lua_timer_pause_preserves_elapsed,
+GUNIT_TEST(lua_stopwatch_components,
     gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, false));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(
-            &context,
-            "local t=Timer.set(e, 2, TimerMode.repeating); t:tick(.5); t:pause():tick(3); assert(t.is_paused and t.elapsed==.5)"
-        )
-    );
+
+    GUNIT_SETUP({
+        gunit_defer(gtime__test_free, &context);
+        gunit_assert("bind time API", gtime__test_create(&context, false));
+    })
+
+    GUNIT_SECTION("pauses and resumes an elapsed interval", {
+        const char* source =
+            "local stopwatch = Stopwatch.set(e)\n"
+            "assert(stopwatch:tick().elapsed == 0.5)\n"
+            "stopwatch:pause():tick(2)\n"
+            "assert(stopwatch:is_paused())\n"
+            "assert(stopwatch.elapsed == 0.5)\n"
+            "stopwatch:unpause():tick(0.5)\n"
+            "assert(stopwatch.elapsed == 1)\n";
+        gunit_assert("pauses and resumes an elapsed interval", gtime__test_run(&context, source));
+    })
+
+    GUNIT_SECTION("copies the supplied stopwatch value", {
+        const char* source =
+            "local value = Stopwatch.new()\n"
+            "value.elapsed = 7\n"
+            "Stopwatch.set(e, value)\n"
+            "assert(Stopwatch.get(e).elapsed == 7)\n";
+        gunit_assert("copies the supplied stopwatch value", gtime__test_run(&context, source));
+    })
+
+    GUNIT_SECTION("invalidates references when removed", {
+        const char* source =
+            "local stopwatch = Stopwatch.set(e)\n"
+            "Stopwatch.remove(e)\n"
+            "assert(not Stopwatch.has(e))\n"
+            "assert(not pcall(function() return stopwatch.elapsed end))\n";
+        gunit_assert("invalidates references when removed", gtime__test_run(&context, source));
+    })
 )
 
-GUNIT_TEST(lua_timer_mutable_progress_properties,
+GUNIT_TEST(lua_rebound_time_bindings,
     gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, false));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(
-            &context,
-            "local t=Timer.set(e, 2, TimerMode.repeating); t:pause():unpause(); t.elapsed=1; t.duration=4; t.mode=TimerMode.once; assert(t.remaining==3 and t.fraction==.25)"
-        )
-    );
-)
 
-GUNIT_TEST(lua_stopwatch_pause_and_resume,
-    gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, false));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(
-            &context,
-            "local sw=Stopwatch.set(e); assert(sw:tick().elapsed==.5); sw:pause():tick(2); assert(sw:is_paused() and sw.elapsed==.5); sw:unpause():tick(.5); assert(sw.elapsed==1)"
-        )
-    );
-)
+    GUNIT_SETUP({
+        gunit_defer(gtime__test_free, &context);
+        gunit_assert("bind time API", gtime__test_create(&context, true));
+    })
 
-GUNIT_TEST(lua_stopwatch_component_copies_value,
-    gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, false));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(
-            &context,
-            "local copy=Stopwatch.new(); copy.elapsed=7; Stopwatch.set(e, copy); assert(Stopwatch.get(e).elapsed==7)"
-        )
-    );
-)
+    GUNIT_SECTION("retained type tables resolve the original world", {
+        const char* source =
+            "assert(old_timer.get(e1).elapsed == 0)\n"
+            "assert(old_stopwatch.get(e1).elapsed == 0)\n";
+        gunit_assert("retained type tables resolve the original world", gtime__test_run(&context, source));
+    })
 
-GUNIT_TEST(lua_stopwatch_removed_reference_is_invalid,
-    gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, false));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(
-            &context,
-            "local sw=Stopwatch.set(e); Stopwatch.remove(e); assert(not Stopwatch.has(e)); assert(not pcall(function() return sw.elapsed end))"
-        )
-    );
-)
+    GUNIT_SECTION("retained component handles use the original clock after collection", {
+        const char* source =
+            "old_timer = nil\n"
+            "old_stopwatch = nil\n"
+            "collectgarbage('collect')\n"
+            "assert(first_timer:tick().elapsed == 0.5)\n"
+            "assert(first_stopwatch:tick().elapsed == 0.5)\n"
+            "assert(timer_alias.elapsed == 0.5)\n"
+            "assert(stopwatch_alias.elapsed == 0.5)\n";
+        gunit_assert("retained handles keep the original clock", gtime__test_run(&context, source));
+    })
 
-GUNIT_TEST(lua_timer_removed_reference_is_invalid,
-    gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, false));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(
-            &context,
-            "local t=Timer.set(e, 2, TimerMode.once); Timer.remove(e); assert(not Timer.has(e)); assert(not pcall(function() return t.elapsed end))"
-        )
-    );
-)
+    GUNIT_SECTION("standalone values use the original clock", {
+        const char* source =
+            "assert(standalone_timer:tick().elapsed == 0.5)\n"
+            "assert(standalone_stopwatch:tick().elapsed == 0.5)\n";
+        gunit_assert("standalone values use the original clock", gtime__test_run(&context, source));
+    })
 
-GUNIT_TEST(lua_rebind_old_types_retain_world,
-    gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, true));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(&context, "assert(old_timer.get(e1).elapsed==0 and old_stopwatch.get(e1).elapsed==0)")
-    );
-)
+    GUNIT_SECTION("copies use the destination world clock", {
+        const char* source =
+            "first_timer:tick()\n"
+            "first_stopwatch:tick()\n"
+            "local timer = Timer.set(e2, first_timer)\n"
+            "local stopwatch = Stopwatch.set(e2, first_stopwatch)\n"
+            "assert(timer:tick().elapsed == 0.75)\n"
+            "assert(stopwatch:tick().elapsed == 0.75)\n"
+            "assert(first_timer.elapsed == 0.5)\n"
+            "assert(first_stopwatch.elapsed == 0.5)\n";
+        gunit_assert("copies use the destination world clock", gtime__test_run(&context, source));
+    })
 
-GUNIT_TEST(lua_rebind_retained_handles_keep_original_clock,
-    gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, true));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(
-            &context,
-            "old_timer=nil; old_stopwatch=nil; collectgarbage('collect'); assert(t:tick().elapsed==.5 and s:tick().elapsed==.5); assert(tg.elapsed==.5 and sg.elapsed==.5)"
-        )
-    );
-)
-
-GUNIT_TEST(lua_rebind_standalone_values_keep_original_clock,
-    gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, true));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(&context, "assert(standalone_t:tick().elapsed==.5 and standalone_s:tick().elapsed==.5)")
-    );
-)
-
-GUNIT_TEST(lua_rebind_copies_to_new_world_clock,
-    gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, true));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(
-            &context,
-            "t:tick(); s:tick(); local nt=Timer.set(e2,t); local ns=Stopwatch.set(e2,s); assert(nt:tick().elapsed==.75 and ns:tick().elapsed==.75); assert(t.elapsed==.5 and s.elapsed==.5)"
-        )
-    );
-)
-
-GUNIT_TEST(lua_rebind_old_handles_still_mutate_original_components,
-    gtime__TestContext context = {0};
-    gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, true));
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(&context, "t.elapsed=2; s.elapsed=3; assert(tg.elapsed==2 and sg.elapsed==3)")
-    );
+    GUNIT_SECTION("retained handles still mutate their original components", {
+        const char* source =
+            "first_timer.elapsed = 2\n"
+            "first_stopwatch.elapsed = 3\n"
+            "assert(timer_alias.elapsed == 2)\n"
+            "assert(stopwatch_alias.elapsed == 3)\n";
+        gunit_assert("retained handles still mutate their original components", gtime__test_run(&context, source));
+    })
 )
 
 GUNIT_TEST(lua_rebind_does_not_alias_unrelated_components,
     gtime__TestContext context = {0};
     gunit_defer(gtime__test_free, &context);
-    gunit_assert("create test context", gtime__test_create(&context, true));
-    gunit_assert(
-        "different timer IDs",
-        gecs_Component_find(context.first, "gtime_Timer") != gecs_Component_find(context.second, "gtime_Timer")
-    );
-    gunit_assert(
-        "different stopwatch IDs",
-        gecs_Component_find(context.first, "gtime_Stopwatch") != gecs_Component_find(context.second, "gtime_Stopwatch")
-    );
-    gunit_assert(
-        "test helper succeeds",
-        gtime__test_run(&context, "t:tick(); s:tick(); Timer.set(e2,t):tick(); Stopwatch.set(e2,s):tick()")
-    );
-    gunit_assert(
-        "small components unchanged",
-        *(char*)gecs_Component_get(context.e1, context.small1) == 42
-            && *(char*)gecs_Component_get(context.e1, context.small2) == 42
-    );
+    gunit_assert("bind time API to both worlds", gtime__test_create(&context, true));
+
+    gecs_Component first_timer = gecs_Component_find(context.first, "gtime_Timer");
+    gecs_Component second_timer = gecs_Component_find(context.second, "gtime_Timer");
+    gunit_assert("worlds use different timer IDs", first_timer != second_timer);
+
+    gecs_Component first_stopwatch = gecs_Component_find(context.first, "gtime_Stopwatch");
+    gecs_Component second_stopwatch = gecs_Component_find(context.second, "gtime_Stopwatch");
+    gunit_assert("worlds use different stopwatch IDs", first_stopwatch != second_stopwatch);
+
+    const char* source =
+        "first_timer:tick()\n"
+        "first_stopwatch:tick()\n"
+        "Timer.set(e2, first_timer):tick()\n"
+        "Stopwatch.set(e2, first_stopwatch):tick()\n";
+    gunit_assert("tick the original and copied components", gtime__test_run(&context, source));
+
+    const char* first_byte = gecs_Component_get(context.e1, context.small1);
+    gunit_assert("first unrelated component is present", first_byte != NULL);
+    gunit_assert("first unrelated component is unchanged", *first_byte == 42);
+
+    const char* second_byte = gecs_Component_get(context.e1, context.small2);
+    gunit_assert("second unrelated component is present", second_byte != NULL);
+    gunit_assert("second unrelated component is unchanged", *second_byte == 42);
 )
 
 gunit_main();
@@ -255,11 +262,16 @@ static bool gtime__test_create(gtime__TestContext* context, bool rebind) {
         }
         gscript_bindings_push_entity(context->lua, context->e1);
         lua_setglobal(context->lua, "e1");
-        if (!gtime__test_run(
-                context,
-                "old_timer=Timer; old_stopwatch=Stopwatch; t=Timer.set(e1,10,TimerMode.once); tg=Timer.get(e1); "
-                "s=Stopwatch.set(e1); sg=Stopwatch.get(e1); standalone_t=Timer.new(10,TimerMode.once); standalone_s=Stopwatch.new()"
-            )) {
+        const char* source =
+            "old_timer = Timer\n"
+            "old_stopwatch = Stopwatch\n"
+            "first_timer = Timer.set(e1, 10, TimerMode.once)\n"
+            "timer_alias = Timer.get(e1)\n"
+            "first_stopwatch = Stopwatch.set(e1)\n"
+            "stopwatch_alias = Stopwatch.get(e1)\n"
+            "standalone_timer = Timer.new(10, TimerMode.once)\n"
+            "standalone_stopwatch = Stopwatch.new()\n";
+        if (!gtime__test_run(context, source)) {
             return false;
         }
         if (!gunit_check(
@@ -323,13 +335,12 @@ static void gtime__test_free(void* user) {
 }
 
 static bool gtime__test_run(gtime__TestContext* context, const char* source) {
-    if (!gscript_lua_run(context->alloc, context->script, source, strlen(source), "time binding")) {
-        fprintf(stderr, "%s\n", lua_tostring(context->lua, -1));
-        if (!gunit_check("Lua time behavior succeeds", false)) {
-            return false;
-        }
+    if (gscript_lua_run(context->alloc, context->script, source, strlen(source), "time binding")) {
+        return true;
     }
-    return true;
+
+    const char* message = lua_tostring(context->lua, -1);
+    return gunit_check(message != NULL ? message : "Lua chunk failed", false);
 }
 
 static float gtime__test_frame_time(void* user) {

@@ -142,10 +142,12 @@ GUNIT_TEST(traversal_rejected,
     gunit_defer(gvfs__test_free, &ctx);
     gunit_assert("create VFS fixture", gvfs__test_create(&ctx));
     gunit_assert("mount asset fixture", gvfs__test_mount_assets(&ctx));
+    const char* path = "/assets/../basic/game.lua";
     size_t size = 99;
-    ctx.data = gvfs_read(ctx.alloc, ctx.fs, "/assets/../basic/game.lua", &size);
-    gunit_assert("traversal rejected and size cleared", ctx.data == NULL && size == 0);
-    gunit_assert("traversal does not exist", !gvfs_exists(ctx.alloc, ctx.fs, "/assets/../basic/game.lua"));
+    ctx.data = gvfs_read(ctx.alloc, ctx.fs, path, &size);
+    gunit_assert("read rejects path traversal", ctx.data == NULL);
+    gunit_assert("rejected read clears the output size", size == 0);
+    gunit_assert("existence check rejects path traversal", !gvfs_exists(ctx.alloc, ctx.fs, path));
 )
 
 GUNIT_TEST(mount_prefix_boundary,
@@ -174,36 +176,34 @@ GUNIT_TEST(native_directory_listing,
     gunit_assert("directory contains script", found);
 )
 
-GUNIT_TEST(native_read_falls_back,
+GUNIT_TEST(native_mount_fallback,
     gvfs__TestContext ctx = {0};
-    gunit_defer(gvfs__test_free, &ctx);
-    gunit_assert("create VFS fixture", gvfs__test_create(&ctx));
-    gunit_assert("mount fallback fixtures", gvfs__test_mount_fallback(&ctx));
-    ctx.text = gvfs_read_str(ctx.alloc, ctx.fs, "/assets/game.lua");
-    gunit_assert("unavailable mount preserves fallback read", ctx.text != NULL && ctx.text[0] != '\0');
-)
 
-GUNIT_TEST(native_listing_falls_back,
-    gvfs__TestContext ctx = {0};
-    gunit_defer(gvfs__test_free, &ctx);
-    gunit_assert("create VFS fixture", gvfs__test_create(&ctx));
-    gunit_assert("mount fallback fixtures", gvfs__test_mount_fallback(&ctx));
-    bool found = false;
-    gunit_assert(
-        "unavailable mount preserves fallback listing",
-        gvfs_list(ctx.alloc, ctx.fs, "/assets", gvfs__test_find_game, &found)
-    );
-    gunit_assert("fallback lists script", found);
-)
+    GUNIT_SETUP({
+        gunit_defer(gvfs__test_free, &ctx);
+        gunit_assert("create VFS fixture", gvfs__test_create(&ctx));
+        gunit_assert("mount fallback fixtures", gvfs__test_mount_fallback(&ctx));
+    })
 
-GUNIT_TEST(native_listing_stops_across_mounts,
-    gvfs__TestContext ctx = {0};
-    gunit_defer(gvfs__test_free, &ctx);
-    gunit_assert("create VFS fixture", gvfs__test_create(&ctx));
-    gunit_assert("mount fallback fixtures", gvfs__test_mount_fallback(&ctx));
-    size_t visits = 0;
-    gunit_assert("early stop succeeds", gvfs_list(ctx.alloc, ctx.fs, "/assets", gvfs__test_stop_listing, &visits));
-    gunit_assert("stop skips remaining entries and mounts", visits == 1);
+    GUNIT_SECTION("read skips an unavailable mount", {
+        ctx.text = gvfs_read_str(ctx.alloc, ctx.fs, "/assets/game.lua");
+        gunit_assert("unavailable mount preserves fallback read", ctx.text != NULL && ctx.text[0] != '\0');
+    })
+
+    GUNIT_SECTION("listing skips an unavailable mount", {
+        bool found = false;
+        gunit_assert(
+            "unavailable mount preserves fallback listing",
+            gvfs_list(ctx.alloc, ctx.fs, "/assets", gvfs__test_find_game, &found)
+        );
+        gunit_assert("fallback lists script", found);
+    })
+
+    GUNIT_SECTION("visitor can stop listing across mounts", {
+        size_t visits = 0;
+        gunit_assert("early stop succeeds", gvfs_list(ctx.alloc, ctx.fs, "/assets", gvfs__test_stop_listing, &visits));
+        gunit_assert("stop skips remaining entries and mounts", visits == 1);
+    })
 )
 
 GUNIT_TEST(read_string_is_nul_terminated,
@@ -211,15 +211,16 @@ GUNIT_TEST(read_string_is_nul_terminated,
     gunit_defer(gvfs__test_free, &ctx);
     gunit_assert("create VFS fixture", gvfs__test_create(&ctx));
     gunit_assert("mount asset fixture", gvfs__test_mount_assets(&ctx));
+    const char* path = "/assets/game.lua";
     size_t size = 0;
-    ctx.data = gvfs_read(ctx.alloc, ctx.fs, "/assets/game.lua", &size);
-    ctx.text = gvfs_read_str(ctx.alloc, ctx.fs, "/assets/game.lua");
-    gunit_assert("raw and string reads succeed", ctx.data != NULL && ctx.text != NULL);
-    gunit_assert("string length matches byte count", strlen(ctx.text) == size);
-    gunit_assert(
-        "string preserves bytes and terminates",
-        memcmp(ctx.data, ctx.text, size) == 0 && ctx.text[size] == '\0'
-    );
+    ctx.data = gvfs_read(ctx.alloc, ctx.fs, path, &size);
+    gunit_assert("raw read succeeds", ctx.data != NULL);
+
+    ctx.text = gvfs_read_str(ctx.alloc, ctx.fs, path);
+    gunit_assert("string read succeeds", ctx.text != NULL);
+    gunit_assert("string length matches raw byte count", strlen(ctx.text) == size);
+    gunit_assert("string preserves file bytes", memcmp(ctx.data, ctx.text, size) == 0);
+    gunit_assert("string ends at the raw byte count", ctx.text[size] == '\0');
 )
 
 GUNIT_TEST(empty_file_is_empty_string,
@@ -248,7 +249,7 @@ GUNIT_TEST(empty_vfs_has_no_mount_points,
     gvfs__TestContext ctx = {0};
     gunit_defer(gvfs__test_free, &ctx);
     gunit_assert("create VFS fixture", gvfs__test_create(&ctx));
-    char* points[3] = {0};
+    const char* points[3] = {0};
     gunit_assert("empty VFS has no points", !gvfs_points(ctx.fs, gvfs__test_collect_point, points));
 )
 
@@ -259,7 +260,7 @@ GUNIT_TEST(mount_points_are_unique_and_ordered,
     gunit_assert("mount assets", gvfs_mount(ctx.alloc, ctx.fs, "/assets", gunit_argv[1]));
     gunit_assert("mount extra", gvfs_mount(ctx.alloc, ctx.fs, "/extra", "."));
     gunit_assert("repeat mount", gvfs_mount(ctx.alloc, ctx.fs, "/assets", gunit_argv[1]));
-    char* points[3] = {0};
+    const char* points[3] = {0};
     gunit_assert("enumerate mount points", gvfs_points(ctx.fs, gvfs__test_collect_point, points));
     gunit_assert("mounts occur exactly once", points[0] != NULL && points[1] != NULL && points[2] == NULL);
     gunit_assert("points sorted by specificity", strcmp(points[0], "/assets") == 0 && strcmp(points[1], "/extra") == 0);
@@ -288,6 +289,7 @@ GUNIT_TEST(working_directory_mount,
     ctx.text = gvfs_read_str(ctx.alloc, ctx.fs, "/glint-vfs-cwd-test.txt");
     gunit_assert("working directory mount resolves fixture", ctx.text != NULL && strcmp(ctx.text, "cwd") == 0);
 )
+
 gunit_main();
 
 static void* gvfs__test_fail_alloc(void* user, size_t bytes) {
@@ -321,13 +323,13 @@ static bool gvfs__test_stop_listing(const char* path, void* user) {
 }
 
 static bool gvfs__test_collect_point(const char* point, void* user) {
-    char** points = user;
+    const char** points = user;
     if (points[0] == NULL) {
-        points[0] = (char*)point;
+        points[0] = point;
     } else if (points[1] == NULL) {
-        points[1] = (char*)point;
+        points[1] = point;
     } else if (points[2] == NULL) {
-        points[2] = (char*)point;
+        points[2] = point;
     }
 
     return points[2] == NULL;
@@ -395,7 +397,7 @@ static bool gvfs__test_virtual_list(
 ) {
     (void)alloc;
     (void)ctx;
-    if (*path != 0) {
+    if (*path != '\0') {
         return false;
     }
 
@@ -414,17 +416,11 @@ static bool gvfs__test_create(gvfs__TestContext* ctx) {
     if (!gunit_check("create VFS", ctx->fs != NULL)) {
         return false;
     }
-    if (!gunit_check("asset root argument supplied", gunit_argc == 2)) {
-        return false;
-    }
-    return true;
+    return gunit_check("asset root argument supplied", gunit_argc == 2);
 }
 
 static bool gvfs__test_mount_assets(gvfs__TestContext* ctx) {
-    if (!gunit_check("mount asset root", gvfs_mount(ctx->alloc, ctx->fs, "/assets", gunit_argv[1]))) {
-        return false;
-    }
-    return true;
+    return gunit_check("mount asset root", gvfs_mount(ctx->alloc, ctx->fs, "/assets", gunit_argv[1]));
 }
 
 static bool gvfs__test_mount_virtual(gvfs__TestContext* ctx) {
@@ -435,10 +431,7 @@ static bool gvfs__test_mount_virtual(gvfs__TestContext* ctx) {
         .list = gvfs__test_virtual_list,
         .destroy = gvfs__test_virtual_destroy
     };
-    if (!gunit_check("mount virtual backend", gvfs_mount_filesystem(ctx->alloc, ctx->fs, "/assets", backend))) {
-        return false;
-    }
-    return true;
+    return gunit_check("mount virtual backend", gvfs_mount_filesystem(ctx->alloc, ctx->fs, "/assets", backend));
 }
 
 static bool gvfs__test_mount_fallback(gvfs__TestContext* ctx) {
@@ -468,10 +461,7 @@ static bool gvfs__test_fixture(gvfs__TestContext* ctx, const char* path, const c
     }
     int closed = fclose(ctx->file);
     ctx->file = NULL;
-    if (!gunit_check("close fixture", closed == 0)) {
-        return false;
-    }
-    return true;
+    return gunit_check("close fixture", closed == 0);
 }
 
 static void gvfs__test_free(void* user) {

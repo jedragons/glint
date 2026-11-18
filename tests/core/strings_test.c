@@ -15,7 +15,7 @@ static void* gstr__test_alloc(void* data, size_t bytes);
 static void gstr__test_free(void* data, void* ptr);
 static void* gstr__test_calloc(void* data, size_t count, size_t size);
 static void* gstr__test_realloc(void* data, void* ptr, size_t old_size, size_t new_size);
-static bool gstr__test_append_twice(galloc_Allocator alloc, gstr_Buffer* sb, const char* format, ...);
+static bool gstr__test_append_twice(galloc_Allocator alloc, gstr_Buffer* buffer, const char* format, ...);
 
 typedef struct gstr__TestContext {
     gstr__TestAllocator state;
@@ -78,15 +78,11 @@ GUNIT_TEST(slice_extracts_boundary_ranges,
 
 GUNIT_TEST(slice_compares_binary_data,
     const char raw[] = {'a', '\0', 'b'};
-    gunit_assert(
-        "slices support embedded NUL",
-        gstr_Slice_eq((gstr_Slice) {raw, sizeof(raw)}, (gstr_Slice) {raw, sizeof(raw)})
-    );
     const char different[] = {'a', '\0', 'c'};
-    gunit_assert(
-        "binary comparison checks bytes after NUL",
-        !gstr_Slice_eq((gstr_Slice) {raw, sizeof(raw)}, (gstr_Slice) {different, sizeof(different)})
-    );
+    const gstr_Slice source = {.items = raw, .count = sizeof(raw)};
+    const gstr_Slice different_tail = {.items = different, .count = sizeof(different)};
+    gunit_assert("identical slices with embedded NUL compare equal", gstr_Slice_eq(source, source));
+    gunit_assert("binary comparison checks bytes after NUL", !gstr_Slice_eq(source, different_tail));
 )
 
 GUNIT_TEST(zero_buffer_is_empty,
@@ -105,7 +101,7 @@ GUNIT_TEST(buffer_accepts_empty_slice,
     gstr__test_context_create(&context);
     gunit_assert(
         "append empty slice",
-        gstr_Buffer_append_slice(context.alloc, &context.buffer, (gstr_Slice) {NULL, 0})
+        gstr_Buffer_append_slice(context.alloc, &context.buffer, (gstr_Slice) {0})
     );
     gunit_assert("buffer remains empty", gstr_Buffer_slice(&context.buffer).count == 0);
 )
@@ -115,6 +111,7 @@ GUNIT_TEST(buffer_self_append,
     gunit_defer(gstr__test_context_free, &context);
     gstr__test_context_create(&context);
     gunit_assert("append string", gstr_Buffer_append_cstr(context.alloc, &context.buffer, "0123456789"));
+
     gstr_Slice alias = gstr_Buffer_slice(&context.buffer);
     gunit_assert("append aliased slice", gstr_Buffer_append_slice(context.alloc, &context.buffer, alias));
     gunit_assert("self append preserves bytes", strcmp(gstr_Buffer_cstr(&context.buffer), "01234567890123456789") == 0);
@@ -125,28 +122,33 @@ GUNIT_TEST(buffer_appends_binary_data,
     gunit_defer(gstr__test_context_free, &context);
     gstr__test_context_create(&context);
     const char raw[] = {'a', '\0', 'b'};
-    gunit_assert(
-        "append embedded NUL",
-        gstr_Buffer_append_slice(context.alloc, &context.buffer, (gstr_Slice) {raw, sizeof(raw)})
-    );
-    gunit_assert(
-        "binary append retains terminator",
-        context.buffer.count == sizeof(raw) && memcmp(context.buffer.items, raw, sizeof(raw)) == 0
-            && context.buffer.items[sizeof(raw)] == '\0'
-    );
+    const gstr_Slice source = {.items = raw, .count = sizeof(raw)};
+    gunit_assert("append embedded NUL", gstr_Buffer_append_slice(context.alloc, &context.buffer, source));
+
+    gunit_assert("binary append creates storage", context.buffer.items != NULL);
+    gunit_assert("binary append stores all input bytes", context.buffer.count == sizeof(raw));
+    gunit_assert("binary append preserves bytes", memcmp(context.buffer.items, raw, sizeof(raw)) == 0);
+    gunit_assert("binary append adds a terminator", context.buffer.items[sizeof(raw)] == '\0');
 )
 
-GUNIT_TEST(buffer_copies_independent_slice,
-    gstr__TestContext context = {0};
-    gunit_defer(gstr__test_context_free, &context);
-    gstr__test_context_create(&context);
-    char source[] = "test";
-    gunit_assert(
-        "append independent slice",
-        gstr_Buffer_append_slice(context.alloc, &context.buffer, (gstr_Slice) {source, 4})
-    );
-    source[0] = 'x';
-    gunit_assert("buffer owns copied bytes", strcmp(gstr_Buffer_cstr(&context.buffer), "test") == 0);
+GUNIT_TEST(buffers_copy_each_others_slices,
+    gstr__TestContext first = {0};
+    gstr__TestContext second = {0};
+    gstr__test_context_create(&first);
+    gstr__test_context_create(&second);
+    gunit_defer(gstr__test_context_free, &first);
+    gunit_defer(gstr__test_context_free, &second);
+    gunit_assert("initialize first buffer", gstr_Buffer_append_cstr(first.alloc, &first.buffer, "one"));
+    gunit_assert("initialize second buffer", gstr_Buffer_append_cstr(second.alloc, &second.buffer, "two"));
+
+    gstr_Slice input = gstr_Buffer_slice(&second.buffer);
+    gunit_assert("append second to first", gstr_Buffer_append_slice(first.alloc, &first.buffer, input));
+    gunit_assert("first contains both strings", strcmp(gstr_Buffer_cstr(&first.buffer), "onetwo") == 0);
+
+    input = gstr_Buffer_slice(&first.buffer);
+    gunit_assert("append first to second", gstr_Buffer_append_slice(second.alloc, &second.buffer, input));
+    gstr_Buffer_clear(&first.buffer);
+    gunit_assert("second owns its copy", strcmp(gstr_Buffer_cstr(&second.buffer), "twoonetwo") == 0);
 )
 
 GUNIT_TEST(buffer_reserve_failure_preserves_content,
@@ -154,6 +156,7 @@ GUNIT_TEST(buffer_reserve_failure_preserves_content,
     gunit_defer(gstr__test_context_free, &context);
     gstr__test_context_create(&context);
     gunit_assert("append original content", gstr_Buffer_append_cstr(context.alloc, &context.buffer, "original"));
+
     gunit_assert("fixture leaves room to request growth", context.buffer.capacity < SIZE_MAX);
     size_t required_capacity = context.buffer.capacity + 1;
     context.state.fail = true;
@@ -230,7 +233,7 @@ static void* gstr__test_alloc(void* data, size_t bytes) {
 
 static void gstr__test_free(void* data, void* ptr) {
     gstr__TestAllocator* state = data;
-    if (!gunit_check("free has a live allocation", (state->live != 0))) {
+    if (!gunit_check("free has a live allocation", state->live > 0)) {
         return;
     }
     state->live -= 1;
@@ -266,12 +269,13 @@ static void* gstr__test_realloc(void* data, void* ptr, size_t old_size, size_t n
     return result;
 }
 
-static bool gstr__test_append_twice(galloc_Allocator alloc, gstr_Buffer* sb, const char* format, ...) {
+static bool gstr__test_append_twice(galloc_Allocator alloc, gstr_Buffer* buffer, const char* format, ...) {
     va_list args;
     va_start(args, format);
-    bool ok = gstr_Buffer_vappendf(alloc, sb, format, args) && gstr_Buffer_vappendf(alloc, sb, format, args);
+    bool appended =
+        gstr_Buffer_vappendf(alloc, buffer, format, args) && gstr_Buffer_vappendf(alloc, buffer, format, args);
     va_end(args);
-    return ok;
+    return appended;
 }
 
 static void gstr__test_context_create(gstr__TestContext* context) {

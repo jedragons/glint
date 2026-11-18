@@ -16,8 +16,9 @@ static void gmod__test_destroy_value(void* value) {
 
 static bool gmod__test_import_module(gmod_Modules* modules, gecs_World* world, void* user) {
     (void)modules;
-    gecs_Component id = gecs_Component_register(world, "test.dll.counter.v1", sizeof(int*), gmod__test_destroy_value);
+    gecs_Component component =
+        gecs_Component_register(world, "test.dll.counter.v1", sizeof(int*), gmod__test_destroy_value);
     gecs_Entity entity = gecs_spawn(world);
     int* counter = user;
-    return id != 0 && entity.id != 0 && gecs_Component_set(entity, id, &counter) != NULL;
+    return component != 0 && entity.id != 0 && gecs_Component_set(entity, component, &counter) != NULL;
 }

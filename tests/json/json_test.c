@@ -1,7 +1,6 @@
 #include <glint/json/json.h>
 #include <glint/unit/unit.h>
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -26,7 +25,7 @@ static void gjson__test_create(gjson__TestContext* context);
 static void gjson__test_free(void* user);
 static bool gjson__test_parse(gjson__TestContext* context, const char* source);
 
-static const char* gjson__test_document =
+static const char gjson__test_document[] =
     "{\"frames\":{\"frame0\":{\"x\":0,\"w\":16,\"duration\":150}},"
     "\"animations\":{\"walk\":[\"frame0\",\"frame1\"]},"
     "\"str\":\"\\uD83D\\uDE03\\u0000a\\n\",\"flag\":true,\"none\":null,\"n\":-1.25e+2}";
@@ -36,10 +35,9 @@ GUNIT_TEST(json_object_members,
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, gjson__test_document));
-    gunit_assert(
-        "object has expected members",
-        context.value->type == GJSON_OBJECT && context.value->as.children.length == 6
-    );
+
+    gunit_assert("document's root is an object", context.value->type == GJSON_OBJECT);
+    gunit_assert("root object has six members", context.value->as.children.length == 6);
 )
 
 GUNIT_TEST(json_nested_number,
@@ -49,7 +47,9 @@ GUNIT_TEST(json_nested_number,
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, gjson__test_document));
     const gjson_Value* frames = gjson_Value_get(context.value, "frames");
     const gjson_Value* frame = gjson_Value_get(frames, "frame0");
-    gunit_assert("read nested number", gjson_Value_get(frame, "w")->as.number == 16);
+    const gjson_Value* width = gjson_Value_get(frame, "w");
+    gunit_assert("frame width is numeric", width != NULL && width->type == GJSON_NUMBER);
+    gunit_assert("nested frame width is 16", width->as.number == 16);
 )
 
 GUNIT_TEST(json_array_indexing,
@@ -57,13 +57,15 @@ GUNIT_TEST(json_array_indexing,
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, gjson__test_document));
-    const gjson_Value* array = gjson_Value_get(gjson_Value_get(context.value, "animations"), "walk");
-    gunit_assert(
-        "parse animation array",
-        array != NULL && array->type == GJSON_ARRAY && array->as.children.length == 2
-    );
-    gunit_assert("read array string", strcmp(gjson_Value_at(array, 1)->as.string.data, "frame1") == 0);
-    gunit_assert("out of range returns NULL", gjson_Value_at(array, 2) == NULL);
+    const gjson_Value* animations = gjson_Value_get(context.value, "animations");
+    const gjson_Value* walk = gjson_Value_get(animations, "walk");
+    gunit_assert("walk animation is an array", walk != NULL && walk->type == GJSON_ARRAY);
+    gunit_assert("walk animation has two frames", walk->as.children.length == 2);
+
+    const gjson_Value* second_frame = gjson_Value_at(walk, 1);
+    gunit_assert("second frame is a string", second_frame != NULL && second_frame->type == GJSON_STRING);
+    gunit_assert("second frame is frame1", strcmp(second_frame->as.string.data, "frame1") == 0);
+    gunit_assert("out-of-range index returns NULL", gjson_Value_at(walk, 2) == NULL);
 )
 
 GUNIT_TEST(json_unicode_and_embedded_nul_string,
@@ -72,9 +74,12 @@ GUNIT_TEST(json_unicode_and_embedded_nul_string,
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, gjson__test_document));
     const gjson_Value* value = gjson_Value_get(context.value, "str");
+    gunit_assert("escaped member is a string", value != NULL && value->type == GJSON_STRING);
+    const char expected[] = "\xf0\x9f\x98\x83\0a\n";
+    gunit_assert("decoded byte count includes embedded NUL", value->as.string.length == sizeof(expected) - 1);
     gunit_assert(
-        "Unicode and embedded NUL decoded",
-        value->as.string.length == 7 && memcmp(value->as.string.data, "\xf0\x9f\x98\x83\0a\n", 7) == 0
+        "Unicode, embedded NUL and newline decode to the expected bytes",
+        memcmp(value->as.string.data, expected, sizeof(expected) - 1) == 0
     );
 )
 
@@ -110,21 +115,25 @@ GUNIT_TEST(json_null_literal,
     gunit_assert("null literal parsed", context.value->type == GJSON_NULL);
 )
 
-GUNIT_TEST(json_embedded_nul_object_key,
+GUNIT_TEST(json_object_key_lookup,
     gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    gunit_assert("parse JSON fixture", gjson__test_parse(&context, "{\"x\\u0000y\":1,\"\":false}"));
-    gunit_assert("length-aware key lookup", gjson_Value_get_n(context.value, "x\0y", 3)->as.number == 1);
-)
 
-GUNIT_TEST(json_empty_object_key,
-    gjson__TestContext context = {0};
-    gunit_defer(gjson__test_free, &context);
-    gjson__test_create(&context);
-    gunit_assert("parse JSON fixture", gjson__test_parse(&context, "{\"x\\u0000y\":1,\"\":false}"));
-    const gjson_Value* value = gjson_Value_get(context.value, "");
-    gunit_assert("empty key lookup", value != NULL && value->type == GJSON_BOOL && !value->as.boolean);
+    GUNIT_SETUP({
+        gunit_defer(gjson__test_free, &context);
+        gjson__test_create(&context);
+        gunit_assert("parse JSON fixture", gjson__test_parse(&context, "{\"x\\u0000y\":1,\"\":false}"));
+    })
+
+    GUNIT_SECTION("length-aware lookup finds an embedded NUL", {
+        const gjson_Value* value = gjson_Value_get_n(context.value, "x\0y", 3);
+        gunit_assert("embedded-NUL key has a numeric value", value != NULL && value->type == GJSON_NUMBER);
+        gunit_assert("embedded-NUL key maps to 1", value->as.number == 1);
+    })
+
+    GUNIT_SECTION("ordinary lookup finds an empty key", {
+        const gjson_Value* value = gjson_Value_get(context.value, "");
+        gunit_assert("empty key lookup", value != NULL && value->type == GJSON_BOOL && !value->as.boolean);
+    })
 )
 
 GUNIT_TEST(json_tree_free_releases_allocations,
@@ -147,6 +156,7 @@ GUNIT_TEST(json_allocation_failures_release_partial_tree,
     gunit_assert("tracked parse allocates", attempts > 0);
     gjson_Value_free(context.alloc, context.value);
     context.value = NULL;
+
     for (size_t failure = 1; failure <= attempts; failure++) {
         context.tracking.attempts = 0;
         context.tracking.fail_at = failure;
@@ -212,10 +222,7 @@ static void gjson__test_free(void* user) {
 
 static bool gjson__test_parse(gjson__TestContext* context, const char* source) {
     context->value = gjson_parse(context->alloc, source, strlen(source), NULL);
-    if (!gunit_check("parse JSON document", context->value != NULL)) {
-        return false;
-    }
-    return true;
+    return gunit_check("parse JSON document", context->value != NULL);
 }
 
 static void* gjson__test_tracking_alloc(void* data, size_t size) {
@@ -236,7 +243,7 @@ static void* gjson__test_tracking_alloc(void* data, size_t size) {
 static void gjson__test_tracking_free(void* data, void* ptr) {
     gjson__TestTrackingAllocator* tracking = data;
     if (ptr != NULL) {
-        if (!gunit_check("free has a live allocation", (tracking->live != 0))) {
+        if (!gunit_check("free has a live allocation", tracking->live > 0)) {
             return;
         }
         tracking->live -= 1;

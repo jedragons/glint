@@ -4,8 +4,10 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #if GLINT_COMPILER_MSVC && !GLINT_COMPILER_CLANG
     #pragma section(".CRT$XCU", read)
@@ -39,15 +41,29 @@ typedef struct gunit__Deferred {
     void* user;
 } gunit__Deferred;
 
+typedef enum gunit_RunKind {
+    GUNIT_RUN_EXPLORE = 0,
+    GUNIT_RUN_EXECUTE = 1,
+} gunit_RunKind;
+
+typedef struct gunit_Args {
+    gunit_RunKind kind;
+    const char* section;
+    const char** sections;
+    size_t section_count;
+    size_t section_capacity;
+} gunit_Args;
+
 typedef struct gunit_Test {
-    void (*func)(void);
+    const char* (*func)(gunit_Args*);
     const char* name;
     struct gunit_Test* next;
 } gunit_Test;
 
 static gunit_Test* gunit_first;
 static gunit_Test* gunit_last;
-static bool gunit__failed;
+static const char* gunit__failure;
+static char* gunit__diagnostic;
 static int gunit_argc;
 static char** gunit_argv;
 
@@ -61,10 +77,49 @@ static inline void gunit_register(gunit_Test* test) {
     gunit_last = test;
 }
 
-/// Record a failed check. Helpers return their own failure status to the test.
+// A returned diagnostic stays valid until the next test invocation.
+static inline void gunit__reset_result(void) {
+    free(gunit__diagnostic);
+    gunit__diagnostic = NULL;
+    gunit__failure = NULL;
+}
+
+/// Keep the first failure, including messages borrowed from helper or callback locals.
 static inline void gunit_fail(const char* file, int line, const char* condition, const char* message) {
-    fprintf(stderr, "\n    %s:%d: check `%s` failed: %s\n", file, line, condition, message);
-    gunit__failed = true;
+    if (gunit__failure != NULL) {
+        return;
+    }
+
+    gunit__failure = "Could not format the failed check";
+    const char* format = "%s:%d: check `%s` failed: %s";
+    int length = snprintf(NULL, 0, format, file, line, condition, message);
+    if (length >= 0) {
+        size_t size = (size_t)length + 1;
+        gunit__diagnostic = malloc(size);
+        if (gunit__diagnostic != NULL) {
+            snprintf(gunit__diagnostic, size, format, file, line, condition, message);
+            gunit__failure = gunit__diagnostic;
+        }
+    }
+}
+
+static inline bool gunit_Args__append_section(gunit_Args* args, const char* section) {
+    if (args->section_count == args->section_capacity) {
+        if (args->section_capacity > SIZE_MAX / sizeof(*args->sections) / 2) {
+            return false;
+        }
+        size_t capacity = args->section_capacity == 0 ? 16 : args->section_capacity * 2;
+        const char** sections = realloc(args->sections, capacity * sizeof(*sections));
+        if (sections == NULL) {
+            return false;
+        }
+        args->sections = sections;
+        args->section_capacity = capacity;
+    }
+
+    args->sections[args->section_count] = section;
+    args->section_count += 1;
+    return true;
 }
 
 /// Check a helper or callback condition without changing control flow.
@@ -81,15 +136,11 @@ static inline void gunit_fail(const char* file, int line, const char* condition,
         } \
     } while (0)
 
-/// Drain this test's stack-local callbacks in reverse order, then return directly.
-/// Use for an early exit; GUNIT_TEST also calls this automatically at the end.
-#define gunit_return(...) \
+/// Drain callbacks and return the first diagnostic, or NULL when all checks passed.
+#define gunit_return() \
     do { \
-        while (gunit__defer_count > 0) { \
-            gunit__defer_count -= 1; \
-            gunit__entries[gunit__defer_count].func(gunit__entries[gunit__defer_count].user); \
-        } \
-        return __VA_ARGS__; \
+        gunit__drain_defers(); \
+        return gunit__failure; \
     } while (0)
 
 /// Register a borrowed cleanup argument on this test's stack.
@@ -112,6 +163,8 @@ static inline void gunit_fail(const char* file, int line, const char* condition,
 #define gunit_require(message, ...) \
     do { \
         if (!gunit_check(message, __VA_ARGS__)) { \
+            gunit__report(gunit__failure, gunit_args); \
+            fflush(stdout); \
             gunit__drain_defers(); \
             exit(EXIT_FAILURE); \
         } \
@@ -135,9 +188,11 @@ static inline void gunit_fail(const char* file, int line, const char* condition,
 #define GUNIT_TEST(test_name, ...) GUNIT_TEST_EXPAND(GUNIT_TEST_NAME(test_name), #test_name, __VA_ARGS__)
 #define GUNIT_TEST_EXPAND(test_name, display_name, ...) GUNIT_TEST_DETAIL(test_name, display_name, __VA_ARGS__)
 #define GUNIT_TEST_DETAIL(test_name, display_name, ...) \
-    static void test_##test_name(void) { \
+    static const char* test_##test_name(gunit_Args* gunit_args) { \
         gunit__Deferred gunit__entries[GUNIT_DEFER_SIZE]; \
         size_t gunit__defer_count = 0; \
+        (void)gunit_args; \
+        gunit__reset_result(); \
         __VA_ARGS__; \
         gunit_return(); \
     } \
@@ -145,6 +200,54 @@ static inline void gunit_fail(const char* file, int line, const char* condition,
     GUNIT_INITIALIZER(register_##test_name) { \
         gunit_register(&gunit_case_##test_name); \
     }
+
+#define GUNIT_SETUP(...) \
+    if (gunit_args->kind == GUNIT_RUN_EXECUTE) { \
+        __VA_ARGS__; \
+    }
+
+#define GUNIT_SECTION(name, ...) \
+    if ((gunit_args->kind == GUNIT_RUN_EXECUTE) && (gunit_args->section != NULL) \
+        && (strcmp(gunit_args->section, (name)) == 0)) { \
+        __VA_ARGS__; \
+    } else if (gunit_args->kind == GUNIT_RUN_EXPLORE) { \
+        gunit_assert("register section", gunit_Args__append_section(gunit_args, (name))); \
+    }
+
+static inline bool gunit__report(const char* result, const gunit_Args* args) {
+    if (result == NULL) {
+        puts("OK");
+        return true;
+    }
+    puts("FAIL");
+    printf("%s%s\n", args->section == NULL ? "    " : "      ", result);
+    return false;
+}
+
+static inline bool gunit__run_test(gunit_Test* test) {
+    printf("  Running '%s'... ", test->name);
+    fflush(stdout);
+
+    gunit_Args args = {.kind = GUNIT_RUN_EXPLORE};
+    const char* result = test->func(&args);
+    bool passed = true;
+    if (result != NULL || args.section_count == 0) {
+        passed = gunit__report(result, &args);
+    } else {
+        puts("");
+        for (size_t i = 0; i < args.section_count; i++) {
+            gunit_Args section = {.kind = GUNIT_RUN_EXECUTE, .section = args.sections[i]};
+            printf("    > section '%s'... ", section.section);
+            fflush(stdout);
+            result = test->func(&section);
+            if (!gunit__report(result, &section)) {
+                passed = false;
+            }
+        }
+    }
+    free(args.sections);
+    return passed;
+}
 
 #define gunit_main(...) \
     int main(int argc, char** argv) { \
@@ -155,17 +258,11 @@ static inline void gunit_fail(const char* file, int line, const char* condition,
         size_t passed = 0; \
         for (gunit_Test* test = gunit_first; test != NULL; test = test->next) { \
             count += 1; \
-            printf("    Running '%s'... ", test->name); \
-            fflush(stdout); \
-            gunit__failed = false; \
-            test->func(); \
-            if (gunit__failed) { \
-                puts("FAIL"); \
-            } else { \
-                puts("OK"); \
+            if (gunit__run_test(test)) { \
                 passed += 1; \
             } \
         } \
-        printf("\n    Passed: %zu/%zu tests.\n", passed, count); \
+        gunit__reset_result(); \
+        printf("\n  Passed: %zu/%zu tests.\n", passed, count); \
         return passed == count ? EXIT_SUCCESS : EXIT_FAILURE; \
     }

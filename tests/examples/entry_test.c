@@ -12,7 +12,7 @@ int example_entry(int argc, char** argv);
 
 typedef struct glint__EntryContext {
     glint_Game game;
-    int allocator_state;
+    int32_t allocator_state;
     size_t destroys;
     bool fail_create;
     bool fail_run;
@@ -88,7 +88,7 @@ bool glint_run_with_completion(galloc_Allocator alloc, glint_Game* game, glint_R
     glint__test_context->end_user = user;
     return true;
 #else
-    bool ok = !glint__test_context->fail_run;
+    const bool ok = !glint__test_context->fail_run;
     end(alloc, game, ok, user);
     return ok;
 #endif
@@ -96,69 +96,70 @@ bool glint_run_with_completion(galloc_Allocator alloc, glint_Game* game, glint_R
 
 #ifndef GLINT_TEST_EXAMPLE_SMOKE
 GUNIT_TEST(entry_creation_failure,
-    glint__EntryContext context = {0};
-    gunit_defer(glint__test_context_free, &context);
+    glint__EntryContext context = {.fail_create = true};
     glint__test_context_create(&context);
-    context.fail_create = true;
-    gunit_assert("creation failure returns error", example_entry(0, NULL) == 1);
-    gunit_assert("failed creation does not destroy game", context.destroys == 0);
+    gunit_defer(glint__test_context_free, &context);
+
+    gunit_assert("creation failure returns an error status", example_entry(0, NULL) == 1);
+    gunit_assert("failed creation leaves no game to destroy", context.destroys == 0);
 )
 #endif
 
 #if GLINT_PLATFORM_EMSCRIPTEN
-GUNIT_TEST(web_entry_schedules_without_running_frames,
+GUNIT_TEST(web_entry,
     glint__EntryContext context = {0};
-    gunit_defer(glint__test_context_free, &context);
-    glint__test_context_create(&context);
-    gunit_assert("web entry schedules successfully", example_entry(0, NULL) == 0);
-    gunit_assert("game remains alive and scheduled", context.end != NULL && context.game.alive);
-    gunit_assert("entry defers game destruction", context.destroys == 0);
-)
 
-GUNIT_TEST(web_entry_success_completion_destroys_game,
-    glint__EntryContext context = {0};
-    gunit_defer(glint__test_context_free, &context);
-    glint__test_context_create(&context);
-    gunit_assert("web entry schedules", example_entry(0, NULL) == 0);
-    gunit_assert("completion registered", context.end != NULL);
-    context.end(context.alloc, &context.game, true, context.end_user);
-    gunit_assert("successful completion destroys game", !context.game.alive && context.destroys == 1);
-)
+    GUNIT_SETUP({
+        glint__test_context_create(&context);
+        gunit_defer(glint__test_context_free, &context);
+        gunit_assert("web entry schedules successfully", example_entry(0, NULL) == 0);
+        gunit_assert("completion callback is registered", context.end != NULL);
+    })
 
-GUNIT_TEST(web_entry_failure_completion_destroys_game,
-    glint__EntryContext context = {0};
-    gunit_defer(glint__test_context_free, &context);
-    glint__test_context_create(&context);
-    gunit_assert("web entry schedules", example_entry(0, NULL) == 0);
-    gunit_assert("completion registered", context.end != NULL);
-    context.end(context.alloc, &context.game, false, context.end_user);
-    gunit_assert("failed completion destroys game", !context.game.alive && context.destroys == 1);
+    GUNIT_SECTION("the entry point returns before completion", {
+        gunit_assert("scheduled game remains alive", context.game.alive);
+        gunit_assert("entry defers game destruction", context.destroys == 0);
+    })
+
+    GUNIT_SECTION("successful completion destroys the game", {
+        context.end(context.alloc, &context.game, true, context.end_user);
+        gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
+    })
+
+    GUNIT_SECTION("failed completion also destroys the game", {
+        context.end(context.alloc, &context.game, false, context.end_user);
+        gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
+    })
 )
-#else
+#elif defined(GLINT_TEST_EXAMPLE_SMOKE)
 GUNIT_TEST(native_entry_completes_and_destroys_game,
     glint__EntryContext context = {0};
-    gunit_defer(glint__test_context_free, &context);
     glint__test_context_create(&context);
-    gunit_assert("native entry succeeds", example_entry(0, NULL) == 0);
-    gunit_assert(
-        "native entry completes and destroys game",
-        !context.game.alive && context.destroys == 1
-    );
-)
+    gunit_defer(glint__test_context_free, &context);
 
-#ifndef GLINT_TEST_EXAMPLE_SMOKE
-GUNIT_TEST(native_entry_run_failure_destroys_game,
-    glint__EntryContext context = {0};
-    gunit_defer(glint__test_context_free, &context);
-    glint__test_context_create(&context);
-    context.fail_run = true;
-    gunit_assert("failed native run returns error", example_entry(0, NULL) == 1);
-    gunit_assert(
-        "failed native run destroys game",
-        !context.game.alive && context.destroys == 1
-    );
+    gunit_assert("native entry returns success", example_entry(0, NULL) == 0);
+    gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
 )
-#endif
+#else
+GUNIT_TEST(native_entry,
+    glint__EntryContext context = {0};
+
+    GUNIT_SETUP({
+        glint__test_context_create(&context);
+        gunit_defer(glint__test_context_free, &context);
+    })
+
+    GUNIT_SECTION("a successful run destroys the game and returns success", {
+        gunit_assert("native entry returns success", example_entry(0, NULL) == 0);
+        gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
+    })
+
+    GUNIT_SECTION("a failed run destroys the game and returns an error status", {
+        context.fail_run = true;
+        gunit_assert("native entry returns an error status", example_entry(0, NULL) == 1);
+        gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
+    })
+)
 #endif
 
 gunit_main();

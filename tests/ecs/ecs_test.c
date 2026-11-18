@@ -1,5 +1,4 @@
-#include "glint/ecs/ecs.h"
-
+#include <glint/ecs/ecs.h>
 #include <glint/unit/unit.h>
 
 #include <stdio.h>
@@ -29,10 +28,12 @@ typedef struct gecs__TestBytes {
     uint8_t data[8];
 } gecs__TestBytes;
 
-typedef struct gecs__TestObserverTest {
+typedef struct gecs__TestObserver {
     gecs_Entity last_entity;
     size_t calls;
-} gecs__TestObserverTest;
+} gecs__TestObserver;
+
+enum { GECS_TEST_ENTITY_CAPACITY = 20 };
 
 static void gecs__test_destroy_owned(void* p);
 static void* gecs__test_alloc(void* data, size_t size);
@@ -53,8 +54,8 @@ typedef struct gecs__TestContext {
     gecs_Component context;
     gecs_Component bytes;
     gecs_Component preserved_contexts[2];
-    gecs_Entity entities[20];
-    gecs__TestObserverTest observer;
+    gecs_Entity entities[GECS_TEST_ENTITY_CAPACITY];
+    gecs__TestObserver observer;
     int32_t* pending_owned;
 } gecs__TestContext;
 
@@ -84,8 +85,8 @@ GUNIT_TEST(entity_handles_are_world_bound,
     gecs__TestPosition second_value = {7, 8};
     gunit_assert("first world stores value", gecs_Component_set(first, context.position, &first_value) != NULL);
     gunit_assert("second world stores value", gecs_Component_set(second, second_position, &second_value) != NULL);
-    gecs__TestPosition* stored_first = gecs_Component_get(first, context.position);
-    gecs__TestPosition* stored_second = gecs_Component_get(second, second_position);
+    const gecs__TestPosition* stored_first = gecs_Component_get(first, context.position);
+    const gecs__TestPosition* stored_second = gecs_Component_get(second, second_position);
     gunit_assert("first world remains isolated", stored_first != NULL && stored_first->x == 3 && stored_first->y == 4);
     gunit_assert(
         "second world remains isolated",
@@ -139,30 +140,35 @@ GUNIT_TEST(component_removal_preserves_remaining_entities,
     gecs__TestContext context = {0};
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
-    gunit_assert("create position fixtures", gecs__test_positions_create(&context, 20));
-    gunit_assert("all component values stored", gecs_Component_count(context.world, context.position) == 20);
-    gunit_assert("remove selected position", gecs_Component_remove(context.entities[4], context.position));
-    gunit_assert("removed position absent", gecs_Component_get(context.entities[4], context.position) == NULL);
-    gunit_assert("only selected component removed", gecs_Component_count(context.world, context.position) == 19);
-    bool seen[20] = {0};
+    const size_t count = GECS_TEST_ENTITY_CAPACITY;
+    gunit_assert("create position fixtures", gecs__test_positions_create(&context, count));
+    const size_t removed = 4;
+    gunit_assert("all component values stored", gecs_Component_count(context.world, context.position) == count);
+
+    gunit_assert("remove selected position", gecs_Component_remove(context.entities[removed], context.position));
+    gunit_assert("removed position absent", gecs_Component_get(context.entities[removed], context.position) == NULL);
+    gunit_assert("only selected component removed", gecs_Component_count(context.world, context.position) == count - 1);
+
+    bool seen[GECS_TEST_ENTITY_CAPACITY] = {0};
     for (size_t index = 0; index < gecs_Component_count(context.world, context.position); index++) {
         gecs_Entity entity = gecs_Component_entity(context.world, context.position, index);
         size_t original = 0;
-        while (original < 20 && context.entities[original].id != entity.id) {
+        while (original < count && context.entities[original].id != entity.id) {
             original += 1;
         }
         gunit_assert(
             "iteration contains only surviving original entities",
-            entity.world == context.world && original < 20 && original != 4
+            entity.world == context.world && original < count && original != removed
         );
         gunit_assert("iteration contains no duplicate entities", !seen[original]);
         seen[original] = true;
     }
-    for (size_t i = 0; i < 20; i++) {
-        if (i == 4) {
+
+    for (size_t i = 0; i < count; i++) {
+        if (i == removed) {
             continue;
         }
-        gecs__TestPosition* position = gecs_Component_get(context.entities[i], context.position);
+        const gecs__TestPosition* position = gecs_Component_get(context.entities[i], context.position);
         gunit_assert("surviving entity remains alive", gecs_Entity_alive(context.entities[i]));
         gunit_assert(
             "surviving component retains value",
@@ -178,9 +184,11 @@ GUNIT_TEST(component_replacement_destroys_previous_value,
     gunit_assert("create test world", gecs__test_context_create(&context));
     gunit_assert("register owned value fixtures", gecs__test_owned_create(&context));
     gecs_Entity entity = gecs_spawn(context.world);
-    gunit_assert("store owned fixture value", gecs__test_put_owned(&context, entity, false, 1));
-    gunit_assert("store owned fixture value", gecs__test_put_owned(&context, entity, false, 2));
+    gunit_assert("store original owned component", gecs__test_put_owned(&context, entity, false, 1));
+
+    gunit_assert("replace owned component", gecs__test_put_owned(&context, entity, false, 2));
     gunit_assert("replacement destroys old value", gecs__test_destroyed == 1);
+
     gecs_Entity_destroy(entity);
     gunit_assert("entity destruction frees owned value", gecs__test_destroyed == 2);
 )
@@ -207,11 +215,13 @@ GUNIT_TEST(context_replacement_and_removal_destroy_values,
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
     gunit_assert("register owned value fixtures", gecs__test_owned_create(&context));
-    gunit_assert("store owned fixture value", gecs__test_put_owned(&context, (gecs_Entity) {0}, true, 3));
-    gecs__TestOwned* owned = gecs_context_get(context.world, context.context);
-    gunit_assert("context retains value", owned != NULL && *owned->ptr == 3);
-    gunit_assert("store owned fixture value", gecs__test_put_owned(&context, (gecs_Entity) {0}, true, 4));
+    gunit_assert("store original owned context", gecs__test_put_owned(&context, (gecs_Entity) {0}, true, 3));
+    const gecs__TestOwned* owned = gecs_context_get(context.world, context.context);
+    gunit_assert("context retains value", owned != NULL && owned->ptr != NULL && *owned->ptr == 3);
+
+    gunit_assert("replace owned context", gecs__test_put_owned(&context, (gecs_Entity) {0}, true, 4));
     gunit_assert("replacement destroys old context value", gecs__test_destroyed == 1);
+
     gunit_assert("remove context", gecs_context_remove(context.world, context.context));
     gunit_assert("removal destroys context value", gecs__test_destroyed == 2);
 )
@@ -332,45 +342,41 @@ GUNIT_TEST(frozen_world_can_be_cleared,
     gunit_assert("free does not destroy twice", gecs__test_clear_destroyed == 3);
 )
 
-GUNIT_TEST(destroy_notifies_observer_and_releases_owned_value,
+GUNIT_TEST(entity_destroy_releases_owned_value_with_or_without_observer,
     gecs__TestContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
-    gunit_assert("register owned value fixtures", gecs__test_owned_create(&context));
-    gecs_Entity entity = gecs_spawn(context.world);
-    gunit_assert("entity spawned", entity.id != 0);
-    gunit_assert("store owned fixture value", gecs__test_put_owned(&context, entity, false, 17));
-    gunit_assert(
-        "observer registered",
-        gecs_World_observe_destroy(context.world, gecs__test_observe_destroy, &context.observer)
-    );
-    gecs_Entity_destroy(entity);
-    gunit_assert("observer notified once", context.observer.calls == 1);
-    gunit_assert(
-        "observer receives destroyed entity handle",
-        context.observer.last_entity.world == entity.world && context.observer.last_entity.id == entity.id
-    );
-    gunit_assert("entity no longer alive", !gecs_Entity_alive(entity));
-    gunit_assert("owned component destroyed once", gecs__test_destroyed == 1);
-)
+    gecs_Entity entity = {0};
 
-GUNIT_TEST(unobserved_destroy_still_releases_owned_value,
-    gecs__TestContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
-    gunit_assert("register owned value fixtures", gecs__test_owned_create(&context));
-    gecs_Entity entity = gecs_spawn(context.world);
-    gunit_assert("entity spawned", entity.id != 0);
-    gunit_assert("store owned fixture value", gecs__test_put_owned(&context, entity, false, 17));
-    gunit_assert(
-        "observer registered",
-        gecs_World_observe_destroy(context.world, gecs__test_observe_destroy, &context.observer)
-    );
-    gecs_World_unobserve_destroy(context.world, gecs__test_observe_destroy, &context.observer);
-    gecs_Entity_destroy(entity);
-    gunit_assert("removed observer is not notified", context.observer.calls == 0);
-    gunit_assert("unobserved entity no longer alive", !gecs_Entity_alive(entity));
-    gunit_assert("unobserved owned value destroyed once", gecs__test_destroyed == 1);
+    GUNIT_SETUP({
+        gunit_defer(gecs__test_context_free, &context);
+        gunit_assert("create test world", gecs__test_context_create(&context));
+        gunit_assert("register owned value fixtures", gecs__test_owned_create(&context));
+        entity = gecs_spawn(context.world);
+        gunit_assert("entity spawned", entity.id != 0);
+        gunit_assert("store owned fixture value", gecs__test_put_owned(&context, entity, false, 17));
+        gunit_assert(
+            "observer registered",
+            gecs_World_observe_destroy(context.world, gecs__test_observe_destroy, &context.observer)
+        );
+    })
+
+    GUNIT_SECTION("registered observer receives the destroyed entity", {
+        gecs_Entity_destroy(entity);
+        gunit_assert("observer notified once", context.observer.calls == 1);
+        gunit_assert(
+            "observer receives destroyed entity handle",
+            context.observer.last_entity.world == entity.world && context.observer.last_entity.id == entity.id
+        );
+        gunit_assert("entity no longer alive", !gecs_Entity_alive(entity));
+        gunit_assert("owned component destroyed once", gecs__test_destroyed == 1);
+    })
+
+    GUNIT_SECTION("removed observer receives no notification", {
+        gecs_World_unobserve_destroy(context.world, gecs__test_observe_destroy, &context.observer);
+        gecs_Entity_destroy(entity);
+        gunit_assert("removed observer is not notified", context.observer.calls == 0);
+        gunit_assert("unobserved entity no longer alive", !gecs_Entity_alive(entity));
+        gunit_assert("unobserved owned value destroyed once", gecs__test_destroyed == 1);
+    })
 )
 
 GUNIT_TEST(world_allocation_failure_releases_memory,
@@ -410,7 +416,8 @@ GUNIT_TEST(component_self_assignment_preserves_contents,
     gunit_defer(gecs__test_context_free, &context);
     gunit_assert("create test world", gecs__test_context_create(&context));
     gunit_assert("create byte component fixtures", gecs__test_bytes_create(&context));
-    gecs__TestBytes* source = gecs_Component_get(context.entities[0], context.bytes);
+    const gecs__TestBytes* source = gecs_Component_get(context.entities[0], context.bytes);
+    gunit_assert("original component is present", source != NULL);
     const gecs__TestBytes expected = *source;
     gunit_assert("self assignment succeeds", gecs_Component_set(context.entities[0], context.bytes, source) != NULL);
     const gecs__TestBytes* stored = gecs_Component_get(context.entities[0], context.bytes);
@@ -443,6 +450,7 @@ GUNIT_TEST(component_copy_accepts_complete_value_from_another_entity,
     gunit_assert("create test world", gecs__test_context_create(&context));
     gunit_assert("create byte component fixtures", gecs__test_bytes_create(&context));
     const gecs__TestBytes* source = gecs_Component_get(context.entities[1], context.bytes);
+    gunit_assert("source component is present", source != NULL);
     const gecs__TestBytes expected = *source;
     gunit_assert(
         "copy complete component value",
@@ -471,6 +479,7 @@ GUNIT_TEST(component_insertions_preserve_aliased_values_with_failing_allocator,
         context.entities[i] = gecs_spawn(context.world);
         gunit_assert("new target entity spawned", context.entities[i].id != 0);
         const gecs__TestBytes* source = gecs_Component_get(context.entities[0], context.bytes);
+        gunit_assert("source component is present", source != NULL);
         const gecs__TestBytes expected = *source;
         size_t before = gecs_Component_count(context.world, context.bytes);
         context.allocator.fail = true;
@@ -553,70 +562,68 @@ GUNIT_TEST(removing_dense_components_empties_pool,
     gunit_assert("tracked world releases all allocations", context.allocator.live == 0);
 )
 
-GUNIT_TEST(world_clear_entities_preserves_context_values,
+GUNIT_TEST(selective_world_clear_preserves_contexts,
     gecs__TestContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
-    gunit_assert("create staged clear fixtures", gecs__test_staged_clear_create(&context));
-    gecs_World_clear_entities(context.world);
-    gunit_assert("all entity component values destroyed", gecs__test_clear_destroyed == 2);
-    gunit_assert(
-        "entity handles invalidated",
-        !gecs_Entity_alive(context.entities[0]) && !gecs_Entity_alive(context.entities[1])
-    );
-    gunit_assert("entity components removed", gecs_Component_count(context.world, context.position) == 0);
-    const int32_t* ordinary = gecs_context_get(context.world, context.context);
-    const int32_t* first = gecs_context_get(context.world, context.preserved_contexts[0]);
-    const int32_t* second = gecs_context_get(context.world, context.preserved_contexts[1]);
-    gunit_assert("ordinary context preserved", ordinary != NULL && *ordinary == 42);
-    gunit_assert("first selected context preserved", first != NULL && *first == 11);
-    gunit_assert("second selected context preserved", second != NULL && *second == 22);
-)
 
-GUNIT_TEST(world_clear_except_preserves_selected_context,
-    gecs__TestContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
-    gunit_assert("create staged clear fixtures", gecs__test_staged_clear_create(&context));
-    gecs_World_clear_except(context.world, context.preserved_contexts[0]);
-    gunit_assert("entities and unselected contexts destroyed", gecs__test_clear_destroyed == 4);
-    gunit_assert(
-        "entity handles invalidated",
-        !gecs_Entity_alive(context.entities[0]) && !gecs_Entity_alive(context.entities[1])
-    );
-    const int32_t* kept = gecs_context_get(context.world, context.preserved_contexts[0]);
-    gunit_assert("selected context preserved", kept != NULL && *kept == 11);
-    gunit_assert("ordinary context removed", gecs_context_get(context.world, context.context) == NULL);
-    gunit_assert("other context removed", gecs_context_get(context.world, context.preserved_contexts[1]) == NULL);
-    gecs_World_clear(context.world);
-    gunit_assert("later clear destroys retained context once", gecs__test_clear_destroyed == 5);
-)
+    GUNIT_SETUP({
+        gunit_defer(gecs__test_context_free, &context);
+        gunit_assert("create test world", gecs__test_context_create(&context));
+        gunit_assert("create staged clear fixtures", gecs__test_staged_clear_create(&context));
+    })
 
-GUNIT_TEST(world_clear_except_many_preserves_selected_contexts,
-    gecs__TestContext context = {0};
-    gunit_defer(gecs__test_context_free, &context);
-    gunit_assert("create test world", gecs__test_context_create(&context));
-    gunit_assert("create staged clear fixtures", gecs__test_staged_clear_create(&context));
-    gecs_World_clear_except_many(context.world, context.preserved_contexts, 2);
-    gunit_assert("entities and unselected context destroyed", gecs__test_clear_destroyed == 3);
-    gunit_assert(
-        "entity handles invalidated",
-        !gecs_Entity_alive(context.entities[0]) && !gecs_Entity_alive(context.entities[1])
-    );
-    const int32_t* first = gecs_context_get(context.world, context.preserved_contexts[0]);
-    const int32_t* second = gecs_context_get(context.world, context.preserved_contexts[1]);
-    gunit_assert("first selected context preserved", first != NULL && *first == 11);
-    gunit_assert("second selected context preserved", second != NULL && *second == 22);
-    gunit_assert("unselected context removed", gecs_context_get(context.world, context.context) == NULL);
-    gecs_World_clear(context.world);
-    gunit_assert("later clear destroys retained contexts once", gecs__test_clear_destroyed == 5);
+    GUNIT_SECTION("entity-only clear preserves every context", {
+        gecs_World_clear_entities(context.world);
+        gunit_assert("all entity component values destroyed", gecs__test_clear_destroyed == 2);
+        gunit_assert(
+            "entity handles invalidated",
+            !gecs_Entity_alive(context.entities[0]) && !gecs_Entity_alive(context.entities[1])
+        );
+        gunit_assert("entity components removed", gecs_Component_count(context.world, context.position) == 0);
+        const int32_t* ordinary = gecs_context_get(context.world, context.context);
+        const int32_t* first = gecs_context_get(context.world, context.preserved_contexts[0]);
+        const int32_t* second = gecs_context_get(context.world, context.preserved_contexts[1]);
+        gunit_assert("ordinary context preserved", ordinary != NULL && *ordinary == 42);
+        gunit_assert("first selected context preserved", first != NULL && *first == 11);
+        gunit_assert("second selected context preserved", second != NULL && *second == 22);
+    })
+
+    GUNIT_SECTION("clear preserves one selected context", {
+        gecs_World_clear_except(context.world, context.preserved_contexts[0]);
+        gunit_assert("entities and unselected contexts destroyed", gecs__test_clear_destroyed == 4);
+        gunit_assert(
+            "entity handles invalidated",
+            !gecs_Entity_alive(context.entities[0]) && !gecs_Entity_alive(context.entities[1])
+        );
+        const int32_t* kept = gecs_context_get(context.world, context.preserved_contexts[0]);
+        gunit_assert("selected context preserved", kept != NULL && *kept == 11);
+        gunit_assert("ordinary context removed", gecs_context_get(context.world, context.context) == NULL);
+        gunit_assert("other context removed", gecs_context_get(context.world, context.preserved_contexts[1]) == NULL);
+        gecs_World_clear(context.world);
+        gunit_assert("later clear destroys retained context once", gecs__test_clear_destroyed == 5);
+    })
+
+    GUNIT_SECTION("clear preserves multiple selected contexts", {
+        gecs_World_clear_except_many(context.world, context.preserved_contexts, 2);
+        gunit_assert("entities and unselected context destroyed", gecs__test_clear_destroyed == 3);
+        gunit_assert(
+            "entity handles invalidated",
+            !gecs_Entity_alive(context.entities[0]) && !gecs_Entity_alive(context.entities[1])
+        );
+        const int32_t* first = gecs_context_get(context.world, context.preserved_contexts[0]);
+        const int32_t* second = gecs_context_get(context.world, context.preserved_contexts[1]);
+        gunit_assert("first selected context preserved", first != NULL && *first == 11);
+        gunit_assert("second selected context preserved", second != NULL && *second == 22);
+        gunit_assert("unselected context removed", gecs_context_get(context.world, context.context) == NULL);
+        gecs_World_clear(context.world);
+        gunit_assert("later clear destroys retained contexts once", gecs__test_clear_destroyed == 5);
+    })
 )
 
 gunit_main();
 
 static void gecs__test_destroy_owned(void* p) {
-    gecs__TestOwned* v = p;
-    galloc_free(v->alloc, v->ptr);
+    gecs__TestOwned* owned = p;
+    galloc_free(owned->alloc, owned->ptr);
     gecs__test_destroyed += 1;
 }
 
@@ -636,7 +643,7 @@ static void* gecs__test_alloc(void* data, size_t size) {
 
 static void gecs__test_free(void* data, void* ptr) {
     gecs__TestAllocator* state = data;
-    if (!gunit_check("free has a live allocation", (state->live != 0))) {
+    if (!gunit_check("free has a live allocation", state->live > 0)) {
         return;
     }
     state->live -= 1;
@@ -682,7 +689,7 @@ static void gecs__test_clear_destructor(void* value) {
 }
 
 static void gecs__test_observe_destroy(gecs_Entity handle, void* user) {
-    gecs__TestObserverTest* observer = user;
+    gecs__TestObserver* observer = user;
     observer->last_entity = handle;
     observer->calls += 1;
 }
@@ -699,10 +706,7 @@ static void gecs__test_context_allocator(gecs__TestContext* context) {
 static bool gecs__test_context_create(gecs__TestContext* context) {
     gecs__test_context_allocator(context);
     context->world = gecs_World_new(context->alloc);
-    if (!gunit_check("world created", context->world != NULL)) {
-        return false;
-    }
-    return true;
+    return gunit_check("world created", context->world != NULL);
 }
 
 static void gecs__test_context_free(void* user) {
@@ -747,10 +751,7 @@ static bool gecs__test_owned_create(gecs__TestContext* context) {
         gecs_Component_register(context->world, "Owned", sizeof(gecs__TestOwned), gecs__test_destroy_owned);
     context->context =
         gecs_context_register(context->world, "Owned", sizeof(gecs__TestOwned), gecs__test_destroy_owned);
-    if (!gunit_check("owned types registered", context->owned != 0 && context->context != 0)) {
-        return false;
-    }
-    return true;
+    return gunit_check("owned types registered", context->owned != 0 && context->context != 0);
 }
 
 static bool gecs__test_put_owned(gecs__TestContext* context, gecs_Entity entity, bool in_context, int32_t value) {
@@ -766,10 +767,7 @@ static bool gecs__test_put_owned(gecs__TestContext* context, gecs_Entity entity,
     if (stored != NULL) {
         context->pending_owned = NULL;
     }
-    if (!gunit_check("owned value stored", stored != NULL)) {
-        return false;
-    }
-    return true;
+    return gunit_check("owned value stored", stored != NULL);
 }
 
 static bool gecs__test_clear_create(gecs__TestContext* context) {
@@ -793,10 +791,7 @@ static bool gecs__test_clear_create(gecs__TestContext* context) {
             return false;
         }
     }
-    if (!gunit_check("clear context created", gecs_context_set(context->world, context->context, &value) != NULL)) {
-        return false;
-    }
-    return true;
+    return gunit_check("clear context created", gecs_context_set(context->world, context->context, &value) != NULL);
 }
 
 static bool gecs__test_bytes_create(gecs__TestContext* context) {
@@ -818,13 +813,10 @@ static bool gecs__test_bytes_create(gecs__TestContext* context) {
         )) {
         return false;
     }
-    if (!gunit_check(
-            "second byte component created",
-            gecs_Component_set(context->entities[1], context->bytes, &second) != NULL
-        )) {
-        return false;
-    }
-    return true;
+    return gunit_check(
+        "second byte component created",
+        gecs_Component_set(context->entities[1], context->bytes, &second) != NULL
+    );
 }
 
 static bool gecs__test_staged_clear_create(gecs__TestContext* context) {
