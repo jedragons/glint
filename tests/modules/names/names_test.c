@@ -152,7 +152,10 @@ static bool gname__test_create(gname__TestContext* context) {
     }
     context->first = gecs_spawn(context->world);
     context->second = gecs_spawn(context->world);
-    return gunit_check("entities spawned", context->first.id != 0 && context->second.id != 0);
+    if (!gunit_check("spawn first entity", context->first.id != 0)) {
+        return false;
+    }
+    return gunit_check("spawn second entity", context->second.id != 0);
 }
 
 static void gname__test_free(void* user) {

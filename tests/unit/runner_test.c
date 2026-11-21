@@ -86,7 +86,8 @@ GUNIT_TEST(helper_assertion,
 )
 
 GUNIT_TEST(empty_defer_stack,
-    gunit_assert("arguments reach cases", gunit_argc == 2 && gunit_argv[1][0] == 'x');
+    gunit_assert("argument count reaches the case", gunit_argc == 2);
+    gunit_assert("argument value reaches the case", gunit_argv[1][0] == 'x');
 )
 
 GUNIT_TEST(mixed_sections,

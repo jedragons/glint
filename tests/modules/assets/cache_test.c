@@ -158,10 +158,12 @@ GUNIT_TEST(asset_unregister,
         gunit_assert("second type registered", gasset__test_register(&ctx, "second", true));
         gasset__TestFakeAsset* first = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/one");
         void* second = gasset_Cache_load(ctx.alloc, ctx.cache, "second", "/two");
-        gunit_assert("both loaded", first != NULL && second != NULL);
+        gunit_assert("first type loads", first != NULL);
+        gunit_assert("second type loads", second != NULL);
         const size_t first_id = first->load_id;
         gunit_assert("type removed", gasset_Cache_unregister(ctx.alloc, ctx.cache, "fake"));
-        gunit_assert("only removed type unloaded", ctx.unloads == 1 && ctx.unload_order[0] == first_id);
+        gunit_assert("exactly one asset unloads", ctx.unloads == 1);
+        gunit_assert("removed type's asset unloads", ctx.unload_order[0] == first_id);
         gunit_assert("other type remains accessible", gasset_Cache_get(ctx.cache, "second", "/two") == second);
     })
 
@@ -202,10 +204,8 @@ GUNIT_TEST(asset_load_and_lookup,
     })
 
     GUNIT_SECTION("contains the data supplied by the loader", {
-        gunit_assert(
-            "asset contents loaded",
-            asset->text != NULL && strcmp(asset->text, "/assets/hero.lua") == 0
-        );
+        gunit_assert("asset contains text", asset->text != NULL);
+        gunit_assert("text contains the requested path", strcmp(asset->text, "/assets/hero.lua") == 0);
         gunit_assert("load ran once", ctx.loads == 1);
     })
 
@@ -219,10 +219,9 @@ GUNIT_TEST(asset_load_and_lookup,
 
     GUNIT_SECTION("loading a different path creates another instance", {
         void* second = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/assets/map.lua");
-        gunit_assert(
-            "different paths produce different instances",
-            second != NULL && second != asset && ctx.loads == 2
-        );
+        gunit_assert("second path loads", second != NULL);
+        gunit_assert("second path gets a distinct instance", second != asset);
+        gunit_assert("loader runs once per path", ctx.loads == 2);
     })
 
     GUNIT_SECTION("lookup finds only loaded paths", {
@@ -240,13 +239,15 @@ GUNIT_TEST(asset_destroy_unloads_in_reverse_load_order,
 
     gasset__TestFakeAsset* first = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/one");
     gasset__TestFakeAsset* second = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/two");
-    gunit_assert("both assets loaded", first != NULL && second != NULL);
+    gunit_assert("first asset loads", first != NULL);
+    gunit_assert("second asset loads", second != NULL);
     const size_t first_id = first->load_id;
     const size_t second_id = second->load_id;
     gasset_Cache_destroy(ctx.alloc, ctx.cache);
     ctx.cache = NULL;
     gunit_assert("every asset unloaded", ctx.unloads == 2);
-    gunit_assert("later asset unloaded first", ctx.unload_order[0] == second_id && ctx.unload_order[1] == first_id);
+    gunit_assert("second asset unloads first", ctx.unload_order[0] == second_id);
+    gunit_assert("first asset unloads last", ctx.unload_order[1] == first_id);
 )
 
 GUNIT_TEST(asset_failed_load,
@@ -268,11 +269,14 @@ GUNIT_TEST(asset_failed_load,
         gunit_assert("retries reach loader", ctx.load_attempts == 2);
         ctx.fail_loads = false;
         gasset__TestFakeAsset* asset = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/bad");
-        gunit_assert("retry succeeds", asset != NULL && ctx.loads == 1 && ctx.load_attempts == 3);
+        gunit_assert("retry returns an asset", asset != NULL);
+        gunit_assert("only one load succeeds", ctx.loads == 1);
+        gunit_assert("loader ran three times", ctx.load_attempts == 3);
         const size_t load_id = asset->load_id;
         gasset_Cache_destroy(ctx.alloc, ctx.cache);
         ctx.cache = NULL;
-        gunit_assert("only successful asset unloaded", ctx.unload_count == 1 && ctx.unload_order[0] == load_id);
+        gunit_assert("exactly one asset unloads", ctx.unload_count == 1);
+        gunit_assert("successful asset unloads", ctx.unload_order[0] == load_id);
     })
 )
 
@@ -290,16 +294,19 @@ GUNIT_TEST(asset_reload,
     GUNIT_SECTION("reload succeeds", {
         gunit_assert("reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
         gunit_assert("reload retains instance", gasset_Cache_get(ctx.cache, "fake", "/a") == asset);
-        gunit_assert("reload keeps the asset path", asset->text != NULL && strcmp(asset->text, "/a") == 0);
+        gunit_assert("reloaded asset contains text", asset->text != NULL);
+        gunit_assert("reload keeps the asset path", strcmp(asset->text, "/a") == 0);
         gunit_assert("reload advances the generation", asset->generation == 2);
-        gunit_assert("reload ran once", ctx.reloads == 1 && ctx.loads == 1);
+        gunit_assert("reload callback runs once", ctx.reloads == 1);
+        gunit_assert("load callback runs only at initial load", ctx.loads == 1);
     })
 
     GUNIT_SECTION("reload fails", {
         ctx.fail_reloads = true;
         gunit_assert("failed reload reported", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
         gunit_assert("failed reload retains instance", gasset_Cache_get(ctx.cache, "fake", "/a") == asset);
-        gunit_assert("old path preserved", asset->text != NULL && strcmp(asset->text, "/a") == 0);
+        gunit_assert("failed reload retains asset text", asset->text != NULL);
+        gunit_assert("failed reload keeps the original path", strcmp(asset->text, "/a") == 0);
         gunit_assert("generation unchanged", asset->generation == 1);
         gunit_assert("failed reload stays cached", gasset_Cache_contains(ctx.cache, "fake", "/a"));
     })
@@ -322,7 +329,8 @@ GUNIT_TEST(asset_fallback_reload,
 
     GUNIT_SECTION("reload succeeds in place", {
         gunit_assert("fallback reload succeeds", gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
-        gunit_assert("fallback unloads and loads", ctx.unloads == 1 && ctx.loads == 2);
+        gunit_assert("fallback unloads the previous contents", ctx.unloads == 1);
+        gunit_assert("fallback invokes the loader again", ctx.loads == 2);
         gunit_assert("instance stays in place", gasset_Cache_get(ctx.cache, "fake", "/a") == asset);
     })
 
@@ -339,11 +347,13 @@ GUNIT_TEST(asset_fallback_reload,
         gunit_assert("failed reload evicts", !gasset_Cache_reload(ctx.alloc, ctx.cache, "fake", "/a"));
         ctx.fail_loads = false;
         gasset__TestFakeAsset* replacement = gasset_Cache_load(ctx.alloc, ctx.cache, "fake", "/a");
-        gunit_assert("evicted path loads again", replacement != NULL && ctx.loads == 3);
+        gunit_assert("evicted path loads again", replacement != NULL);
+        gunit_assert("third load succeeds", ctx.loads == 3);
         const size_t load_id = replacement->load_id;
         gasset_Cache_destroy(ctx.alloc, ctx.cache);
         ctx.cache = NULL;
-        gunit_assert("surviving instance unloaded last", ctx.unload_count == 3 && ctx.unload_order[2] == load_id);
+        gunit_assert("three loads are released in total", ctx.unload_count == 3);
+        gunit_assert("surviving instance unloads last", ctx.unload_order[2] == load_id);
     })
 )
 
@@ -374,11 +384,13 @@ GUNIT_TEST(asset_watch,
         gasset__TestFakeAsset* first = gasset_Cache_get(ctx.cache, "fake", "/a");
         gasset__TestFakeAsset* second = gasset_Cache_get(ctx.cache, "fake", "/b");
         gunit_assert("changed file reloads once", ctx.reloads == 1);
-        gunit_assert(
-            "mapped asset reloaded",
-            first != NULL && first->text != NULL && strcmp(first->text, "/a") == 0 && first->generation == 2
-        );
-        gunit_assert("unmapped asset untouched", second != NULL && second->generation == 1 && ctx.loads == 2);
+        gunit_assert("mapped asset remains cached", first != NULL);
+        gunit_assert("mapped asset contains text", first->text != NULL);
+        gunit_assert("mapped asset retains its path", strcmp(first->text, "/a") == 0);
+        gunit_assert("mapped asset advances a generation", first->generation == 2);
+        gunit_assert("unmapped asset remains cached", second != NULL);
+        gunit_assert("unmapped asset keeps its generation", second->generation == 1);
+        gunit_assert("polling performs no initial loads", ctx.loads == 2);
     })
 
     GUNIT_SECTION("watching a second file twice reloads the asset once", {
@@ -404,7 +416,8 @@ GUNIT_TEST(asset_watch,
         gunit_assert("write asset", gasset__test_write_asset(ctx.fixture_path, "changed after unregister"));
         gunit_assert("write asset", gasset__test_write_asset(ctx.extra_fixture_path, "changed after unregister"));
         gasset_Cache_poll(ctx.alloc, ctx.cache);
-        gunit_assert("unregister removed every mapping", ctx.reloads == 0 && ctx.unload_count == 2);
+        gunit_assert("polling after unregister triggers no reloads", ctx.reloads == 0);
+        gunit_assert("unregister unloads both assets", ctx.unload_count == 2);
     })
 )
 
@@ -419,7 +432,9 @@ GUNIT_TEST(asset_reentrant_load,
 
     GUNIT_SECTION("retains dependencies loaded in the callback", {
         int* primary = gasset_Cache_load(ctx.alloc, ctx.cache, "outer", "main");
-        gunit_assert("reentrant initial load", primary != NULL && *primary == 42 && ctx.reentrant.callbacks == 1);
+        gunit_assert("primary asset loads", primary != NULL);
+        gunit_assert("primary asset contains the loaded value", *primary == 42);
+        gunit_assert("reentrant callback runs once", ctx.reentrant.callbacks == 1);
         gunit_assert("dependency retained", gasset_Cache_get(ctx.cache, "outer", "dep1-2") != NULL);
     })
 
@@ -487,10 +502,8 @@ GUNIT_TEST(asset_reentrant_allocation_failure,
             gunit_assert("loaded instance cleaned up", ctx.reentrant.unloads == 1);
             gunit_assert("failed instance not cached", gasset_Cache_get(ctx.cache, "outer", "main") == NULL);
         } else {
-            gunit_assert(
-                "successful load retains its instance",
-                *primary == 42 && gasset_Cache_get(ctx.cache, "outer", "main") == primary
-            );
+            gunit_assert("primary asset contains the loaded value", *primary == 42);
+            gunit_assert("primary instance is cached", gasset_Cache_get(ctx.cache, "outer", "main") == primary);
             gunit_assert("cached instance remains owned", ctx.reentrant.unloads == 0);
         }
         gunit_assert("reentrant dependency survives", gasset_Cache_get(ctx.cache, "outer", "dep1-2") != NULL);
@@ -523,8 +536,12 @@ GUNIT_TEST(asset_module_owned_services,
     GUNIT_SECTION("publishes its own VFS and cache", {
         gvfsmod_Service* vfs = gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gvfsmod_Service));
         gasset_Service* asset = gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gasset_Service));
-        gunit_assert("owned VFS", vfs != NULL && vfs->vfs != NULL && vfs->module_owned);
-        gunit_assert("owned cache", asset != NULL && asset->cache != NULL && asset->module_owned);
+        gunit_assert("VFS service exists", vfs != NULL);
+        gunit_assert("VFS instance exists", vfs->vfs != NULL);
+        gunit_assert("VFS module owns its service", vfs->module_owned);
+        gunit_assert("asset service exists", asset != NULL);
+        gunit_assert("cache instance exists", asset->cache != NULL);
+        gunit_assert("asset module owns its service", asset->module_owned);
     })
 
     GUNIT_SECTION("unloads assets while the VFS is still alive", {
@@ -553,10 +570,8 @@ GUNIT_TEST(asset_module_owned_services,
         gmod_Modules_update(ctx.alloc, ctx.modules);
         gunit_assert("unload dependencies", gmod_Modules_unload(ctx.alloc, ctx.modules));
         gunit_assert("asset unloaded while VFS alive", ctx.module_state.unloaded == 1);
-        gunit_assert(
-            "owned services removed",
-            gecs_context_get(ctx.world, vfs_type) == NULL && gecs_context_get(ctx.world, assets_type) == NULL
-        );
+        gunit_assert("owned VFS service is removed", gecs_context_get(ctx.world, vfs_type) == NULL);
+        gunit_assert("owned asset service is removed", gecs_context_get(ctx.world, assets_type) == NULL);
     })
 )
 
@@ -582,8 +597,10 @@ GUNIT_TEST(asset_module_host_services,
         gunit_assert("unload module", gmod_Modules_unload(ctx.alloc, ctx.modules));
         gvfsmod_Service* vfs = gecs_context_get(ctx.world, vfs_type);
         gasset_Service* assets_service = gecs_context_get(ctx.world, assets_type);
-        gunit_assert("borrowed VFS preserved", vfs != NULL && vfs->vfs == ctx.host_vfs.vfs);
-        gunit_assert("borrowed cache preserved", assets_service != NULL && assets_service->cache == ctx.cache);
+        gunit_assert("borrowed VFS service remains published", vfs != NULL);
+        gunit_assert("borrowed VFS instance is preserved", vfs->vfs == ctx.host_vfs.vfs);
+        gunit_assert("borrowed asset service remains published", assets_service != NULL);
+        gunit_assert("borrowed cache instance is preserved", assets_service->cache == ctx.cache);
     })
 
     GUNIT_SECTION("rolls back the VFS dependency for an invalid host cache", {
@@ -912,7 +929,10 @@ static void gasset__test_module_unload(galloc_Allocator alloc, void* instance, v
     (void)instance;
     gasset__TestModuleState* state = user;
     gvfsmod_Service* vfs = gecs_context_get(state->world, state->vfs_type);
-    if (!gunit_check("VFS survives asset unload", vfs != NULL && vfs->vfs != NULL)) {
+    if (!gunit_check("VFS service remains published during asset unload", vfs != NULL)) {
+        return;
+    }
+    if (!gunit_check("VFS instance remains available during asset unload", vfs->vfs != NULL)) {
         return;
     }
     state->unloaded += 1;

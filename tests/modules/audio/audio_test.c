@@ -75,7 +75,8 @@ GUNIT_TEST(audio_device_open,
     GUNIT_SECTION("hardware initialization failure leaves the handle closed", {
         gaudio__test_device_start_succeeds = false;
         gunit_assert("failed initialization is reported", !gaudio_Device_open(ctx.alloc, &ctx.owner, 256));
-        gunit_assert("failed device is not marked open", !ctx.owner.open && !gaudio_Device_ready(&ctx.owner));
+        gunit_assert("failed handle remains closed", !ctx.owner.open);
+        gunit_assert("failed handle reports unavailable", !gaudio_Device_ready(&ctx.owner));
     })
 )
 
@@ -95,21 +96,18 @@ GUNIT_TEST(audio_device_ownership,
 
     GUNIT_SECTION("closing a borrowed handle leaves the device open", {
         gunit_assert("second handle borrows", gaudio_Device_open(ctx.alloc, &ctx.borrowed, 1024));
-        gunit_assert(
-            "borrowing preserves initialization and buffer",
-            gaudio__test_device_init_calls == 1 && gaudio__test_last_buffer_size == 2048
-        );
+        gunit_assert("borrowing does not initialize again", gaudio__test_device_init_calls == 1);
+        gunit_assert("borrowing preserves the original buffer size", gaudio__test_last_buffer_size == 2048);
 
         gaudio_Device_close(&ctx.borrowed);
-        gunit_assert(
-            "closing borrower preserves device",
-            gaudio__test_device_ready && gaudio__test_device_close_calls == 0
-        );
+        gunit_assert("device remains ready after closing the borrower", gaudio__test_device_ready);
+        gunit_assert("closing the borrower does not close the device", gaudio__test_device_close_calls == 0);
     })
 
     GUNIT_SECTION("closing the owning handle twice closes the device once", {
         gaudio_Device_close(&ctx.owner);
-        gunit_assert("owner closes device", !gaudio__test_device_ready && gaudio__test_device_close_calls == 1);
+        gunit_assert("device becomes unavailable when the owner closes it", !gaudio__test_device_ready);
+        gunit_assert("close reaches the device once", gaudio__test_device_close_calls == 1);
         gaudio_Device_close(&ctx.owner);
         gunit_assert("close is idempotent", gaudio__test_device_close_calls == 1);
     })
@@ -131,7 +129,8 @@ GUNIT_TEST(audio_module_lifecycle,
         gunit_assert("load", gmod_Modules_load(ctx.alloc, ctx.modules));
 
         gaudio_Service* service = gecs_context_get(ctx.world, GECS_CONTEXT(ctx.world, gaudio_Service));
-        gunit_assert("device available through world", service != NULL && gaudio_Device_ready(&service->device));
+        gunit_assert("audio service is published", service != NULL);
+        gunit_assert("published device is ready", gaudio_Device_ready(&service->device));
         gunit_assert("initialized exactly once", gaudio__test_device_init_calls == 1);
     })
 
@@ -263,7 +262,8 @@ GUNIT_TEST(filter_clamps_cutoff,
     gunit_assert("negative cutoff clamps", gdsp_OnePoleFilter_set_cutoff(&filter, -10.0f, 48000.0f));
     gunit_assert("clamped gain is zero", filter.integrator_gain == 0.0f);
     gunit_assert("large cutoff clamps", gdsp_OnePoleFilter_set_cutoff(&filter, 100000.0f, 48000.0f));
-    gunit_assert("clamped gain stays finite", isfinite(filter.integrator_gain) && filter.integrator_gain > 0.0f);
+    gunit_assert("clamped gain stays finite", isfinite(filter.integrator_gain));
+    gunit_assert("clamped gain stays positive", filter.integrator_gain > 0.0f);
 )
 
 GUNIT_TEST(low_pass_step_response_settles_to_dc,
@@ -274,8 +274,7 @@ GUNIT_TEST(low_pass_step_response_settles_to_dc,
     gunit_assert("first sample is filtered", output > 0 && output < 1);
 
     const float first = output;
-    for (size_t i = 0; i < 1000; i++) {
-        output = gdsp_OnePoleFilter_process_sample(&filter, 1.0f);
+    for (size_t i = 0; i < 1000; i++) { output = gdsp_OnePoleFilter_process_sample(&filter, 1.0f);
     }
     gunit_assert("low pass responds over time", output > first);
     gunit_assert("low pass preserves DC", fabsf(output - 1) < 0.0001f);
@@ -289,8 +288,7 @@ GUNIT_TEST(high_pass_step_response_rejects_dc,
     gunit_assert("step produces a filtered transient", output > 0 && output < 1);
 
     const float first = output;
-    for (size_t i = 0; i < 1000; i++) {
-        output = gdsp_OnePoleFilter_process_sample(&filter, 1.0f);
+    for (size_t i = 0; i < 1000; i++) { output = gdsp_OnePoleFilter_process_sample(&filter, 1.0f);
     }
     gunit_assert("transient decays", fabsf(output) < first);
     gunit_assert("high pass rejects DC", fabsf(output) < 0.0001f);
@@ -345,7 +343,10 @@ static void gaudio__test_free(void* user) {
 static bool gaudio__test_unload_unavailable_service(gaudio__TestContext* ctx) {
     gecs_Component type = GECS_CONTEXT(ctx->world, gaudio_Service);
     gaudio_Service* service = gecs_context_get(ctx->world, type);
-    if (!gunit_check("module owns the unavailable service", service != NULL && service->module_owned)) {
+    if (!gunit_check("unavailable audio service is published", service != NULL)) {
+        return false;
+    }
+    if (!gunit_check("module owns the unavailable service", service->module_owned)) {
         return false;
     }
     if (!gunit_check("unavailable device remains closed", !service->device.open)) {

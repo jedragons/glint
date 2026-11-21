@@ -27,9 +27,9 @@ cargo-check:
 
 fmt:
     #!/usr/bin/env sh
-    set -euio pipefail
+    set -eu
 
-    find sources \( -iname '*.c' -o -iname '*.h' \) -exec clang-format -i {} +
+    find sources tests \( -iname '*.c' -o -iname '*.h' \) -exec clang-format -i {} +
     stylua examples
 
 precommit: fmt check-fix

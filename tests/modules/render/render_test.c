@@ -89,8 +89,10 @@ GUNIT_TEST(texture_loaded_from_memory,
         gunit_assert("byte count forwarded", ctx.loaded_size == sizeof("fake png bytes") - 1);
 
         gunit_assert("texture id", ctx.texture.id == 7);
-        gunit_assert("texture dimensions", ctx.texture.width == 8 && ctx.texture.height == 4);
-        gunit_assert("texture metadata", ctx.texture.mipmaps == 1 && ctx.texture.format == 7);
+        gunit_assert("width comes from the backend", ctx.texture.width == 8);
+        gunit_assert("height comes from the backend", ctx.texture.height == 4);
+        gunit_assert("mipmap count comes from the backend", ctx.texture.mipmaps == 1);
+        gunit_assert("format comes from the backend", ctx.texture.format == 7);
         gunit_assert("texture is valid", grender_Texture_valid(&ctx.texture));
     })
 
@@ -98,7 +100,8 @@ GUNIT_TEST(texture_loaded_from_memory,
         grender_Texture_unload(&ctx.texture);
 
         gunit_assert("texture released", ctx.unload_count == 1);
-        gunit_assert("handle reset", ctx.texture.id == 0 && ctx.texture.width == 0);
+        gunit_assert("unload clears the texture ID", ctx.texture.id == 0);
+        gunit_assert("unload clears the width", ctx.texture.width == 0);
         gunit_assert("unloaded texture invalid", !grender_Texture_valid(&ctx.texture));
 
         grender_Texture_unload(&ctx.texture);
@@ -131,7 +134,9 @@ GUNIT_TEST(texture_loaded_from_vfs,
         gunit_assert("write PNG fixture", grender__test_write_image(&ctx, "glint-render-test.png"));
         ctx.texture = grender_Texture_load_vfs(ctx.alloc, ctx.fs, "/glint-render-test.png");
 
-        gunit_assert("texture uploaded", ctx.texture.id == 7 && ctx.texture.width == 8 && ctx.texture.height == 4);
+        gunit_assert("uploaded texture ID comes from the backend", ctx.texture.id == 7);
+        gunit_assert("uploaded width comes from the backend", ctx.texture.width == 8);
+        gunit_assert("uploaded height comes from the backend", ctx.texture.height == 4);
         gunit_assert("file type inferred from the extension", strcmp(ctx.loaded_type, ".png") == 0);
         gunit_assert("file bytes read", ctx.loaded_size == sizeof("fake png bytes") - 1);
     })
@@ -171,11 +176,13 @@ GUNIT_TEST(texture_draw,
         const gcolor_Color tint = {.r = 18, .g = 52, .b = 86, .a = 120};
         grender_draw_texture(ctx.texture, (gvec2_Vec2) {.x = 2, .y = 3}, tint);
 
-        gunit_assert("draw reaches backend", ctx.draw_count == 1 && ctx.drawn_texture.id == 7);
+        gunit_assert("backend draws once", ctx.draw_count == 1);
+        gunit_assert("backend draws the requested texture", ctx.drawn_texture.id == 7);
         const grect_Rect full_texture = {.w = 8, .h = 4};
         gunit_assert("source covers full texture", grender__test_same_rect(ctx.drawn_source, full_texture));
         gunit_assert("natural size at (2, 3)", grender__test_same_rect(ctx.drawn_dest, (grect_Rect) {2, 3, 8, 4}));
-        gunit_assert("default origin", ctx.drawn_origin.x == 0 && ctx.drawn_origin.y == 0);
+        gunit_assert("default origin x is zero", ctx.drawn_origin.x == 0);
+        gunit_assert("default origin y is zero", ctx.drawn_origin.y == 0);
         gunit_assert("default rotation", ctx.drawn_rotation == 0);
         gunit_assert("tint forwarded", grender__test_same_color(ctx.drawn_tint, tint));
     })
@@ -194,9 +201,8 @@ GUNIT_TEST(texture_draw,
         gunit_assert("one draw", ctx.draw_count == 1);
         gunit_assert("source forwarded", grender__test_same_rect(ctx.drawn_source, params.source));
         gunit_assert("destination forwarded", grender__test_same_rect(ctx.drawn_dest, params.dest));
-        gunit_assert(
-            "origin forwarded", ctx.drawn_origin.x == params.origin.x && ctx.drawn_origin.y == params.origin.y
-        );
+        gunit_assert("origin x forwarded", ctx.drawn_origin.x == params.origin.x);
+        gunit_assert("origin y forwarded", ctx.drawn_origin.y == params.origin.y);
         gunit_assert("rotation forwarded", ctx.drawn_rotation == params.rotation);
         const gcolor_Color white = {255, 255, 255, 255};
         gunit_assert("white tint forwarded", grender__test_same_color(ctx.drawn_tint, white));

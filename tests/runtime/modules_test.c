@@ -22,6 +22,7 @@ typedef struct gmod__TestData {
     size_t count;
     gmod_Module* dependency;
     bool fail_load;
+    bool fail_start;
     bool veto_unload;
     size_t rendered_frames;
     void* scratch;
@@ -366,7 +367,7 @@ GUNIT_TEST(module_start_failure,
 
         gunit_assert("import module a", gmod_Modules_import(context.alloc, context.modules, context.a));
         gunit_assert("import module b", gmod_Modules_import(context.alloc, context.modules, context.b));
-        context.data.fail_load = true;
+        context.data.fail_start = true;
     })
 
     GUNIT_SECTION("failed start rolls back every loaded module", {
@@ -377,7 +378,7 @@ GUNIT_TEST(module_start_failure,
 
     GUNIT_SECTION("load can be retried after start recovers", {
         gunit_assert("failed start reported", !gmod_Modules_load(context.alloc, context.modules));
-        context.data.fail_load = false;
+        context.data.fail_start = false;
         gunit_assert("load can be retried", gmod_Modules_load(context.alloc, context.modules));
     })
 )
@@ -578,11 +579,11 @@ GUNIT_TEST(core_module_installs_services,
     gecs_World* world = context.world;
     gtypes_LuaService* lua = gecs_context_get(world, GECS_CONTEXT(world, gtypes_LuaService));
     grender_Service* render = gecs_context_get(world, GECS_CONTEXT(world, grender_Service));
-    gunit_assert("Lua service installed", lua != NULL && lua->lua != NULL);
-    gunit_assert(
-        "render service installed",
-        render != NULL && render->draw_texture != NULL && render->clear_background != NULL
-    );
+    gunit_assert("Lua service installed", lua != NULL);
+    gunit_assert("Lua service has a state", lua->lua != NULL);
+    gunit_assert("render service installed", render != NULL);
+    gunit_assert("render service can draw textures", render->draw_texture != NULL);
+    gunit_assert("render service can clear the background", render->clear_background != NULL);
     gunit_assert("time service installed", gecs_context_get(world, GECS_CONTEXT(world, gtime_Host)) != NULL);
     gunit_assert("script service installed", gecs_context_get(world, GECS_CONTEXT(world, gscript_Service)) != NULL);
 )
@@ -593,14 +594,14 @@ GUNIT_TEST(core_module_installs_lua_bindings,
     gunit_assert("create test context", gmod__test_create(&context, false));
     gunit_assert("load headless core modules", gmod__test_core(&context));
     gtypes_LuaService* lua = gecs_context_get(context.world, GECS_CONTEXT(context.world, gtypes_LuaService));
-    gunit_assert("Lua service available", lua != NULL && lua->lua != NULL);
+    gunit_assert("Lua service available", lua != NULL);
+    gunit_assert("Lua state available", lua->lua != NULL);
+    gunit_assert("window binding exposes the host delta", luaL_dostring(lua->lua, "assert(window.dt == 0.25)") == 0);
     gunit_assert(
-        "window and type Lua bindings",
-        luaL_dostring(
-            lua->lua,
-            "assert(window.dt == 0.25); local v = Vec2.new(2, 3); assert(v.x == 2 and v.y == 3); assert(Timer ~= nil)"
-        ) == 0
+        "Vec2 binding constructs a vector",
+        luaL_dostring(lua->lua, "local v = Vec2.new(2, 3); assert(v.x == 2 and v.y == 3)") == 0
     );
+    gunit_assert("Timer binding installed", luaL_dostring(lua->lua, "assert(Timer ~= nil)") == 0);
 )
 
 GUNIT_TEST(core_unload_removes_owned_contexts,
@@ -614,11 +615,10 @@ GUNIT_TEST(core_unload_removes_owned_contexts,
     gecs_Component render = GECS_CONTEXT(world, grender_Service);
     gecs_Component script = GECS_CONTEXT(world, gscript_Service);
     gunit_assert("unload core", gmod_Modules_unload(context.alloc, context.modules));
-    gunit_assert(
-        "owned contexts removed",
-        gecs_context_get(world, lua) == NULL && gecs_context_get(world, time) == NULL
-            && gecs_context_get(world, render) == NULL && gecs_context_get(world, script) == NULL
-    );
+    gunit_assert("Lua service removed", gecs_context_get(world, lua) == NULL);
+    gunit_assert("time service removed", gecs_context_get(world, time) == NULL);
+    gunit_assert("render service removed", gecs_context_get(world, render) == NULL);
+    gunit_assert("script service removed", gecs_context_get(world, script) == NULL);
 )
 
 GUNIT_TEST(core_unload_preserves_host_services_and_names,
@@ -627,10 +627,9 @@ GUNIT_TEST(core_unload_preserves_host_services_and_names,
     gunit_assert("create test context", gmod__test_create(&context, false));
     gunit_assert("load headless core modules", gmod__test_core(&context));
     gecs_Entity entity = gecs_spawn(context.world);
-    gunit_assert(
-        "hierarchy names work",
-        entity.id != 0 && gname_set(entity, "hero") && gname_find(context.world, "hero").id == entity.id
-    );
+    gunit_assert("spawn entity", entity.id != 0);
+    gunit_assert("set entity name", gname_set(entity, "hero"));
+    gunit_assert("find entity by name before unload", gname_find(context.world, "hero").id == entity.id);
     gunit_assert("unload core", gmod_Modules_unload(context.alloc, context.modules));
     gunit_assert("host clock survives", gecs_context_get(context.world, context.host_type) != NULL);
     gunit_assert("entity names survive", gname_find(context.world, "hero").id == entity.id);
@@ -703,13 +702,10 @@ static bool gmod__test_stages(gmod__TestContext* context) {
         {GMOD_INIT, .name = "normal", .user = &context->normal, .update = gmod__test_stage, .render = gmod__test_stage};
     gmod_Module early =
         {GMOD_INIT, .name = "early", .user = &context->early, .update = gmod__test_stage, .update_order = -1};
-    return gunit_check(
-        "load modules",
-        gmod_Modules_import(context->alloc, context->modules, late)
-            && gmod_Modules_import(context->alloc, context->modules, normal)
-            && gmod_Modules_import(context->alloc, context->modules, early)
-            && gmod_Modules_load(context->alloc, context->modules)
-    );
+    return gunit_check("import late stage", gmod_Modules_import(context->alloc, context->modules, late))
+        && gunit_check("import normal stage", gmod_Modules_import(context->alloc, context->modules, normal))
+        && gunit_check("import early stage", gmod_Modules_import(context->alloc, context->modules, early))
+        && gunit_check("load stage modules", gmod_Modules_load(context->alloc, context->modules));
 }
 
 static bool gmod__test_configure(gmod__TestContext* context) {
@@ -867,11 +863,11 @@ static bool gmod__test_start_b(gecs_World* world, void* user, char* error, size_
     (void)world;
     gmod__TestData* data = user;
     gmod__test_event(data, 'S');
-    if (data->fail_load) {
+    if (data->fail_start) {
         snprintf(error, error_size, "start failed");
     }
 
-    return !data->fail_load;
+    return !data->fail_start;
 }
 
 static void gmod__test_unload_a(gecs_World* world, void* user) {

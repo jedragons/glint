@@ -13,6 +13,7 @@ typedef struct glog_test__Sink {
     char message[8192];
 } glog_test__Sink;
 
+static bool glog_test__received(const glog_test__Sink* sink, glog_Level level, const char* message);
 static void glog_test__capture(glog_Level level, const char* format, va_list args, void* user);
 
 typedef struct glog_test__Context {
@@ -37,32 +38,27 @@ GUNIT_TEST(logging_native_helpers,
 
     GUNIT_SECTION("trace forwards trace severity", {
         glog_trace("trace %d", 1);
-        gunit_assert("severity forwarded", context.sink.level == GLOG_TRACE && context.sink.count == 1);
-        gunit_assert("message formatted", strcmp(context.sink.message, "trace 1") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_TRACE, "trace 1"));
     })
 
     GUNIT_SECTION("debug forwards debug severity", {
         glog_debug("debug %d", 2);
-        gunit_assert("severity forwarded", context.sink.level == GLOG_DEBUG && context.sink.count == 1);
-        gunit_assert("message formatted", strcmp(context.sink.message, "debug 2") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_DEBUG, "debug 2"));
     })
 
     GUNIT_SECTION("info preserves percent signs in string arguments", {
         glog_info("info %s", "100%");
-        gunit_assert("severity forwarded", context.sink.level == GLOG_INFO && context.sink.count == 1);
-        gunit_assert("message formatted", strcmp(context.sink.message, "info 100%") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_INFO, "info 100%"));
     })
 
     GUNIT_SECTION("warn forwards warning severity", {
         glog_warn("warning");
-        gunit_assert("severity forwarded", context.sink.level == GLOG_WARN && context.sink.count == 1);
-        gunit_assert("message formatted", strcmp(context.sink.message, "warning") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_WARN, "warning"));
     })
 
     GUNIT_SECTION("error forwards error severity", {
         glog_error("error");
-        gunit_assert("severity forwarded", context.sink.level == GLOG_ERROR && context.sink.count == 1);
-        gunit_assert("message formatted", strcmp(context.sink.message, "error") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_ERROR, "error"));
     })
 
     GUNIT_SECTION("the callback receives the full length of a long message", {
@@ -95,10 +91,7 @@ GUNIT_TEST(logging_threshold,
 
     GUNIT_SECTION("messages at the threshold reach the sink", {
         glog_warn("accepted");
-        gunit_assert(
-            "threshold message forwarded",
-            context.sink.count == 1 && strcmp(context.sink.message, "accepted") == 0
-        );
+        gunit_assert("sink receives the warning", glog_test__received(&context.sink, GLOG_WARN, "accepted"));
     })
 
     GUNIT_SECTION("disabling logging suppresses even fatal severity", {
@@ -118,14 +111,12 @@ GUNIT_TEST(logging_lua_helpers,
 
     GUNIT_SECTION("trace forwards trace severity", {
         gunit_assert("call Lua logger", glog_test__lua(&context, "log_trace('trace')"));
-        gunit_assert("Lua severity forwarded", context.sink.level == GLOG_TRACE && context.sink.count == 1);
-        gunit_assert("Lua arguments converted", strcmp(context.sink.message, "trace") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_TRACE, "trace"));
     })
 
     GUNIT_SECTION("debug forwards debug severity", {
         gunit_assert("call Lua logger", glog_test__lua(&context, "log_debug('debug')"));
-        gunit_assert("Lua severity forwarded", context.sink.level == GLOG_DEBUG && context.sink.count == 1);
-        gunit_assert("Lua arguments converted", strcmp(context.sink.message, "debug") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_DEBUG, "debug"));
     })
 
     GUNIT_SECTION("info converts values to strings and preserves percent signs", {
@@ -137,20 +128,20 @@ GUNIT_TEST(logging_lua_helpers,
                 "log_info('100% safe', 42, true, nil, custom)"
             )
         );
-        gunit_assert("Lua severity forwarded", context.sink.level == GLOG_INFO && context.sink.count == 1);
-        gunit_assert("Lua arguments converted", strcmp(context.sink.message, "100% safe 42 true nil custom") == 0);
+        gunit_assert(
+            "sink receives the log entry",
+            glog_test__received(&context.sink, GLOG_INFO, "100% safe 42 true nil custom")
+        );
     })
 
     GUNIT_SECTION("warn forwards warning severity", {
         gunit_assert("call Lua logger", glog_test__lua(&context, "log_warn('warning')"));
-        gunit_assert("Lua severity forwarded", context.sink.level == GLOG_WARN && context.sink.count == 1);
-        gunit_assert("Lua arguments converted", strcmp(context.sink.message, "warning") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_WARN, "warning"));
     })
 
     GUNIT_SECTION("error forwards error severity", {
         gunit_assert("call Lua logger", glog_test__lua(&context, "log_error('error')"));
-        gunit_assert("Lua severity forwarded", context.sink.level == GLOG_ERROR && context.sink.count == 1);
-        gunit_assert("Lua arguments converted", strcmp(context.sink.message, "error") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_ERROR, "error"));
     })
 
     GUNIT_SECTION("fatal reaches the error sink and raises a Lua error", {
@@ -162,13 +153,13 @@ GUNIT_TEST(logging_lua_helpers,
                 "assert(not ok and err:find('log_fatal called'))"
             )
         );
-        gunit_assert("Lua severity forwarded", context.sink.level == GLOG_ERROR && context.sink.count == 1);
-        gunit_assert("Lua arguments converted", strcmp(context.sink.message, "fatal") == 0);
+        gunit_assert("sink receives the log entry", glog_test__received(&context.sink, GLOG_ERROR, "fatal"));
     })
 
     GUNIT_SECTION("the callback receives the full length of a long Lua message", {
         gunit_assert("call Lua logger", glog_test__lua(&context, "log_info(string.rep('x', 16384), '100%')"));
-        gunit_assert("script logger reaches Glint", context.sink.count == 1 && context.sink.level == GLOG_INFO);
+        gunit_assert("sink receives one Lua message", context.sink.count == 1);
+        gunit_assert("Lua message has info severity", context.sink.level == GLOG_INFO);
         gunit_assert("Lua buffering preserves full message", context.sink.length == 16389);
     })
 )
@@ -198,6 +189,16 @@ GUNIT_TEST(logging_world_and_window_registration_preserve_loggers,
 )
 
 gunit_main();
+
+static bool glog_test__received(const glog_test__Sink* sink, glog_Level level, const char* message) {
+    if (!gunit_check("sink receives one message", sink->count == 1)) {
+        return false;
+    }
+    if (!gunit_check("sink receives the expected severity", sink->level == level)) {
+        return false;
+    }
+    return gunit_check("sink receives the formatted message", strcmp(sink->message, message) == 0);
+}
 
 static bool glog_test__create(glog_test__Context* context, bool script) {
     context->previous_level = glog_get_level();

@@ -123,7 +123,11 @@ GUNIT_TEST(behavior_replacement,
     GUNIT_SECTION("destroys the original behavior and runs replacement setup", {
         gunit_assert(
             "run original destroy and replacement setup",
-            gscript_behavior__test_run(&context, "assert(parent_destroyed == 1 and parent.replaced)")
+            gscript_behavior__test_run(
+                &context,
+                "assert(parent_destroyed == 1)\n"
+                "assert(parent.replaced)\n"
+            )
         );
         gunit_assert("update replacement", gscript_behavior_update(context.alloc, context.behaviors));
         gunit_assert(
@@ -183,7 +187,10 @@ GUNIT_TEST(replacing_another_behavior_defers_its_update,
     gunit_assert(
         "replacement runs setup and waits to update",
         gscript_behavior__test_run(
-            &context, "assert(old_destroyed and new_setup and not new_updates)"
+            &context,
+            "assert(old_destroyed)\n"
+            "assert(new_setup)\n"
+            "assert(not new_updates)\n"
         )
     );
     gunit_assert("next update", gscript_behavior_update(context.alloc, context.behaviors));
@@ -204,7 +211,11 @@ GUNIT_TEST(invalid_reload_preserves_script_and_can_be_retried,
         "write malformed Lua",
         gscript_behavior__test_write_file(context.files[2], "return { update = function( invalid lua syntax")
     );
-    gunit_assert("bad reload retains prior script", gscript_behavior_update(context.alloc, context.behaviors));
+    gunit_assert("update succeeds after a bad reload", gscript_behavior_update(context.alloc, context.behaviors));
+    gunit_assert(
+        "original update runs after a bad reload",
+        gscript_behavior__test_run(&context, "assert(new_updates == 2)")
+    );
     gunit_assert(
         "write a corrected update callback",
         gscript_behavior__test_write_file(
@@ -214,7 +225,7 @@ GUNIT_TEST(invalid_reload_preserves_script_and_can_be_retried,
     );
     gunit_assert("fixed reload succeeds", gscript_behavior_update(context.alloc, context.behaviors));
     gunit_assert(
-        "prior and corrected callbacks both ran",
+        "corrected update adds ten",
         gscript_behavior__test_run(&context, "assert(new_updates == 12)")
     );
 )
@@ -223,7 +234,27 @@ GUNIT_TEST(shutdown_rejects_new_behavior_spawns,
     gscript_behavior__TestContext context = {0};
     gunit_defer(gscript_behavior__test_free, &context);
     gunit_assert("create behavior manager", gscript_behavior__test_create(&context, false));
-    gunit_assert("attach the replacing and original behaviors", gscript_behavior__test_mutation(&context));
+    gunit_assert(
+        "write the spawn target",
+        gscript_behavior__test_file(&context, 0, "glint-shutdown-child.lua", "return {}")
+    );
+    gunit_assert(
+        "write a destroy callback that attempts to spawn",
+        gscript_behavior__test_file(
+            &context,
+            1,
+            "glint-shutdown-parent.lua",
+            "return {\n"
+            "    destroy = function()\n"
+            "        shutdown_blocked = not pcall(function() spawn('/glint-shutdown-child.lua') end)\n"
+            "    end\n"
+            "}\n"
+        )
+    );
+    gunit_assert(
+        "attach parent behavior",
+        gscript_behavior__test_attach(&context, "/glint-shutdown-parent.lua", "parent")
+    );
     gunit_assert("destroy manager", gscript_behavior_destroy(context.alloc, context.behaviors));
     context.behaviors = NULL;
     gasset_Cache_destroy(context.alloc, context.cache);
@@ -356,7 +387,8 @@ GUNIT_TEST(shared_behavior_asset,
         const char* asset_path = gscript_asset_path(first->asset);
         gunit_assert("source asset has a path", asset_path != NULL);
         gunit_assert("asset path is the attached source", strcmp(asset_path, "/glint-shared-behavior.lua") == 0);
-        gunit_assert("components use the supplied Lua state", first->lua == context.lua && second->lua == context.lua);
+        gunit_assert("first component uses the supplied Lua runtime", first->lua == context.lua);
+        gunit_assert("second component uses the supplied Lua runtime", second->lua == context.lua);
         lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
         lua_rawgeti(context.lua, LUA_REGISTRYINDEX, second->state_ref);
         gunit_assert("components own separate Lua tables", !lua_rawequal(context.lua, -1, -2));
@@ -370,7 +402,8 @@ GUNIT_TEST(shared_behavior_asset,
             gscript_behavior__test_run(
                 &context,
                 "assert(loads == 1)\n"
-                "assert(a.count == 1 and b.count == 1)\n"
+                "assert(a.count == 1)\n"
+                "assert(b.count == 1)\n"
                 "assert(math.min(a.shared, b.shared) == 1)\n"
                 "assert(math.max(a.shared, b.shared) == 2)\n"
             )
@@ -395,7 +428,10 @@ GUNIT_TEST(shared_behavior_asset,
         gunit_assert(
             "both entities update using the reloaded script",
             gscript_behavior__test_run(
-                &context, "assert(loads == 2 and a.count == 11 and b.count == 11)"
+                &context,
+                "assert(loads == 2)\n"
+                "assert(a.count == 11)\n"
+                "assert(b.count == 11)\n"
             )
         );
         first = gecs_Component_get(context.entities[0], type);
@@ -447,13 +483,15 @@ GUNIT_TEST(shared_behavior_asset,
                 "collectgarbage()\n"
                 "collectgarbage()\n"
                 "assert(weak_state[1] == nil)\n"
-                "assert(a.count == nil and a.shared == nil)\n"
+                "assert(a.count == nil)\n"
+                "assert(a.shared == nil)\n"
                 "assert(b.count == 11)\n"
             )
         );
         first = gecs_Component_get(context.entities[0], type);
         const gscript_behavior_Behavior* second = gecs_Component_get(context.entities[1], type);
-        gunit_assert("replacement and retained components exist", first != NULL && second != NULL);
+        gunit_assert("replacement component exists", first != NULL);
+        gunit_assert("second component remains attached", second != NULL);
         lua_rawgeti(context.lua, LUA_REGISTRYINDEX, first->state_ref);
         lua_rawgeti(context.lua, LUA_REGISTRYINDEX, second->state_ref);
         gunit_assert("replacement owns a separate Lua table", !lua_rawequal(context.lua, -1, -2));
@@ -576,9 +614,10 @@ GUNIT_TEST(behavior_destroy_is_deferred_during_cache_callback,
         )
     );
     gunit_assert(
-        "callback defers destroy",
-        gasset_Cache_load(context.alloc, context.cache, "reentry", "test") != NULL && context.reentry.deferred
+        "asset loads during a destroy attempt",
+        gasset_Cache_load(context.alloc, context.cache, "reentry", "test") != NULL
     );
+    gunit_assert("destroy is deferred during the callback", context.reentry.deferred);
     gunit_assert("manager remains usable", gscript_behavior_update(context.alloc, context.behaviors));
     gunit_assert("retry destroy", gscript_behavior_destroy(context.alloc, context.behaviors));
     context.behaviors = NULL;
@@ -636,7 +675,11 @@ GUNIT_TEST(shared_behavior_callback_errors,
         gunit_assert("other scripts continue", gscript_behavior_update(context.alloc, context.behaviors));
         gunit_assert(
             "only one failing setup runs and the other asset updates",
-            gscript_behavior__test_run(&context, "assert(setups == 1 and other == 1)")
+            gscript_behavior__test_run(
+                &context,
+                "assert(setups == 1)\n"
+                "assert(other == 1)\n"
+            )
         );
     })
 
@@ -658,7 +701,11 @@ GUNIT_TEST(shared_behavior_callback_errors,
         gunit_assert("repeat update succeeds", gscript_behavior_update(context.alloc, context.behaviors));
         gunit_assert(
             "failing hook runs once while the other asset updates",
-            gscript_behavior__test_run(&context, "assert(attempts == 1 and other == 2)")
+            gscript_behavior__test_run(
+                &context,
+                "assert(attempts == 1)\n"
+                "assert(other == 2)\n"
+            )
         );
     })
 
@@ -693,7 +740,11 @@ GUNIT_TEST(shared_behavior_callback_errors,
         gunit_assert("fixed reload recovers asset", gscript_behavior_update(context.alloc, context.behaviors));
         gunit_assert(
             "recovered asset updates both entities and the independent asset kept updating",
-            gscript_behavior__test_run(&context, "assert(recovered == 2 and other == 5)")
+            gscript_behavior__test_run(
+                &context,
+                "assert(recovered == 2)\n"
+                "assert(other == 5)\n"
+            )
         );
     })
 
@@ -785,7 +836,13 @@ static bool gscript_behavior__test_create(gscript_behavior__TestContext* context
         gvfsmod_Service* vfs = gecs_context_get(context->world, GECS_CONTEXT(context->world, gvfsmod_Service));
         gasset_Service* assets = gecs_context_get(context->world, GECS_CONTEXT(context->world, gasset_Service));
         gscript_Service* script = gecs_context_get(context->world, GECS_CONTEXT(context->world, gscript_Service));
-        if (!gunit_check("script dependencies available", vfs != NULL && assets != NULL && script != NULL)) {
+        if (!gunit_check("VFS service available", vfs != NULL)) {
+            return false;
+        }
+        if (!gunit_check("asset service available", assets != NULL)) {
+            return false;
+        }
+        if (!gunit_check("script service available", script != NULL)) {
             return false;
         }
         context->vfs = vfs->vfs;
@@ -955,9 +1012,6 @@ static bool gscript_behavior__test_mutation(gscript_behavior__TestContext* conte
             "            changed = true\n"
             "            b:attach_module('/glint-mutate-c.lua')\n"
             "        end\n"
-            "    end,\n"
-            "    destroy = function(entity)\n"
-            "        shutdown_blocked = not pcall(function() spawn('/glint-mutate-c.lua') end)\n"
             "    end\n"
             "}\n"
         )) {
@@ -996,7 +1050,8 @@ static bool gscript_behavior__test_native(gscript_behavior__TestContext* context
             "return {\n"
             "    setup = function(entity) entity.marker = 42 end,\n"
             "    destroy = function(entity)\n"
-            "        assert(entity:valid() and entity.marker == 42)\n"
+            "        assert(entity:valid())\n"
+            "        assert(entity.marker == 42)\n"
             "        destroyed = (destroyed or 0) + 1\n"
             "        entity:destroy()\n"
             "        assert(entity:valid())\n"

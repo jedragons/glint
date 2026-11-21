@@ -262,8 +262,11 @@ GUNIT_TEST(mount_points_are_unique_and_ordered,
     gunit_assert("repeat mount", gvfs_mount(ctx.alloc, ctx.fs, "/assets", gunit_argv[1]));
     const char* points[3] = {0};
     gunit_assert("enumerate mount points", gvfs_points(ctx.fs, gvfs__test_collect_point, points));
-    gunit_assert("mounts occur exactly once", points[0] != NULL && points[1] != NULL && points[2] == NULL);
-    gunit_assert("points sorted by specificity", strcmp(points[0], "/assets") == 0 && strcmp(points[1], "/extra") == 0);
+    gunit_assert("first mount point is present", points[0] != NULL);
+    gunit_assert("second mount point is present", points[1] != NULL);
+    gunit_assert("repeated mount does not add a third point", points[2] == NULL);
+    gunit_assert("assets mount listed first", strcmp(points[0], "/assets") == 0);
+    gunit_assert("extra mount listed second", strcmp(points[1], "/extra") == 0);
 )
 
 GUNIT_TEST(working_directory_allocation_failure,

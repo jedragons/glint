@@ -44,7 +44,11 @@ GUNIT_TEST(entity_handles_share_lua_fields,
     lua_setglobal(context.lua, "other");
     gunit_assert(
         "read the same Lua fields through the second handle",
-        gscript__test_run(&context, "assert(other.number == 42 and other.data[2] == 5)")
+        gscript__test_run(
+            &context,
+            "assert(other.number == 42)\n"
+            "assert(other.data[2] == 5)\n"
+        )
     );
 )
 
@@ -60,7 +64,8 @@ GUNIT_TEST(entity_destroy_callback,
         context.destroy.fail = true;
         const char* source =
             "local destroyed, err = pcall(function() e:destroy() end)\n"
-            "assert(not destroyed and err == 'destroy rejected')\n"
+            "assert(not destroyed)\n"
+            "assert(err == 'destroy rejected')\n"
             "assert(e:valid())\n";
         gunit_assert("report veto to Lua", gscript__test_run(&context, source));
         gunit_assert("destroy callback runs once", context.destroy.calls == 1);

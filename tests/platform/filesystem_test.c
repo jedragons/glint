@@ -46,7 +46,8 @@ GUNIT_TEST(filesystem_read,
         gunit_assert("read native file", gfs_read(ctx.alloc, gfs_test__path, &ctx.data, &size) == GFS_OK);
 
         gunit_assert("returned byte count excludes terminator", size == sizeof(contents) - 1);
-        gunit_assert("native file contents match", ctx.data != NULL && memcmp(ctx.data, contents, size) == 0);
+        gunit_assert("read returns file data", ctx.data != NULL);
+        gunit_assert("native file contents match", memcmp(ctx.data, contents, size) == 0);
     })
 
     GUNIT_SECTION("reading a removed file reports unavailable", {

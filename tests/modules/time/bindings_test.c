@@ -240,18 +240,20 @@ static bool gtime__test_create(gtime__TestContext* context, bool rebind) {
         context->e2 = gecs_spawn(context->second);
         context->small1 = gecs_Component_register(context->first, "small1", 1, NULL);
         context->small2 = gecs_Component_register(context->first, "small2", 1, NULL);
-        if (!gunit_check(
-                "register unrelated components",
-                context->e2.id != 0 && context->small1 != 0 && context->small2 != 0
-            )) {
+        if (!gunit_check("spawn entity in second world", context->e2.id != 0)) {
+            return false;
+        }
+        if (!gunit_check("register small1 in first world", context->small1 != 0)) {
+            return false;
+        }
+        if (!gunit_check("register small2 in first world", context->small2 != 0)) {
             return false;
         }
         char byte = 42;
-        if (!gunit_check(
-                "set unrelated components",
-                gecs_Component_set(context->e1, context->small1, &byte) != NULL
-                    && gecs_Component_set(context->e1, context->small2, &byte) != NULL
-            )) {
+        if (!gunit_check("set small1", gecs_Component_set(context->e1, context->small1, &byte) != NULL)) {
+            return false;
+        }
+        if (!gunit_check("set small2", gecs_Component_set(context->e1, context->small2, &byte) != NULL)) {
             return false;
         }
         if (!gunit_check(
@@ -302,11 +304,10 @@ static bool gtime__test_create(gtime__TestContext* context, bool rebind) {
             return false;
         }
         gmod_Module time = gtime_module();
-        if (!gunit_check(
-                "import time idempotently",
-                gmod_Modules_import(context->alloc, context->modules, time)
-                    && gmod_Modules_import(context->alloc, context->modules, time)
-            )) {
+        if (!gunit_check("import time module", gmod_Modules_import(context->alloc, context->modules, time))) {
+            return false;
+        }
+        if (!gunit_check("reimport time module", gmod_Modules_import(context->alloc, context->modules, time))) {
             return false;
         }
         if (!gunit_check("load time module", gmod_Modules_load(context->alloc, context->modules))) {

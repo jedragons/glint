@@ -88,7 +88,8 @@ GUNIT_TEST(json_numeric_exponent,
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, "-1.25e+2"));
-    gunit_assert("numeric exponent parsed", context.value->type == GJSON_NUMBER && context.value->as.number == -125);
+    gunit_assert("exponent literal has numeric type", context.value->type == GJSON_NUMBER);
+    gunit_assert("exponent literal evaluates to -125", context.value->as.number == -125);
 )
 
 GUNIT_TEST(json_true_literal,
@@ -96,7 +97,8 @@ GUNIT_TEST(json_true_literal,
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, "true"));
-    gunit_assert("true literal parsed", context.value->type == GJSON_BOOL && context.value->as.boolean);
+    gunit_assert("true literal has boolean type", context.value->type == GJSON_BOOL);
+    gunit_assert("boolean value is true", context.value->as.boolean);
 )
 
 GUNIT_TEST(json_false_literal,
@@ -104,7 +106,8 @@ GUNIT_TEST(json_false_literal,
     gunit_defer(gjson__test_free, &context);
     gjson__test_create(&context);
     gunit_assert("parse JSON fixture", gjson__test_parse(&context, "false"));
-    gunit_assert("false literal parsed", context.value->type == GJSON_BOOL && !context.value->as.boolean);
+    gunit_assert("false literal has boolean type", context.value->type == GJSON_BOOL);
+    gunit_assert("boolean value is false", !context.value->as.boolean);
 )
 
 GUNIT_TEST(json_null_literal,
@@ -132,7 +135,9 @@ GUNIT_TEST(json_object_key_lookup,
 
     GUNIT_SECTION("ordinary lookup finds an empty key", {
         const gjson_Value* value = gjson_Value_get(context.value, "");
-        gunit_assert("empty key lookup", value != NULL && value->type == GJSON_BOOL && !value->as.boolean);
+        gunit_assert("empty key exists", value != NULL);
+        gunit_assert("empty key has a boolean value", value->type == GJSON_BOOL);
+        gunit_assert("empty key maps to false", !value->as.boolean);
     })
 )
 

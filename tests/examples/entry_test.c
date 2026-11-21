@@ -123,12 +123,14 @@ GUNIT_TEST(web_entry,
 
     GUNIT_SECTION("successful completion destroys the game", {
         context.end(context.alloc, &context.game, true, context.end_user);
-        gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
+        gunit_assert("game is no longer alive", !context.game.alive);
+        gunit_assert("destruction runs once", context.destroys == 1);
     })
 
     GUNIT_SECTION("failed completion also destroys the game", {
         context.end(context.alloc, &context.game, false, context.end_user);
-        gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
+        gunit_assert("game is no longer alive", !context.game.alive);
+        gunit_assert("destruction runs once", context.destroys == 1);
     })
 )
 #elif defined(GLINT_TEST_EXAMPLE_SMOKE)
@@ -138,7 +140,8 @@ GUNIT_TEST(native_entry_completes_and_destroys_game,
     gunit_defer(glint__test_context_free, &context);
 
     gunit_assert("native entry returns success", example_entry(0, NULL) == 0);
-    gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
+    gunit_assert("game is no longer alive", !context.game.alive);
+    gunit_assert("destruction runs once", context.destroys == 1);
 )
 #else
 GUNIT_TEST(native_entry,
@@ -151,13 +154,15 @@ GUNIT_TEST(native_entry,
 
     GUNIT_SECTION("a successful run destroys the game and returns success", {
         gunit_assert("native entry returns success", example_entry(0, NULL) == 0);
-        gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
+        gunit_assert("game is no longer alive", !context.game.alive);
+        gunit_assert("destruction runs once", context.destroys == 1);
     })
 
     GUNIT_SECTION("a failed run destroys the game and returns an error status", {
         context.fail_run = true;
         gunit_assert("native entry returns an error status", example_entry(0, NULL) == 1);
-        gunit_assert("game is destroyed once", !context.game.alive && context.destroys == 1);
+        gunit_assert("game is no longer alive", !context.game.alive);
+        gunit_assert("destruction runs once", context.destroys == 1);
     })
 )
 #endif

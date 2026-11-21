@@ -156,10 +156,9 @@ GUNIT_TEST(component_removal_preserves_remaining_entities,
         while (original < count && context.entities[original].id != entity.id) {
             original += 1;
         }
-        gunit_assert(
-            "iteration contains only surviving original entities",
-            entity.world == context.world && original < count && original != removed
-        );
+        gunit_assert("iteration returns an entity from the original world", entity.world == context.world);
+        gunit_assert("iteration returns a known entity", original < count);
+        gunit_assert("iteration skips the entity whose component was removed", original != removed);
         gunit_assert("iteration contains no duplicate entities", !seen[original]);
         seen[original] = true;
     }
@@ -170,10 +169,9 @@ GUNIT_TEST(component_removal_preserves_remaining_entities,
         }
         const gecs__TestPosition* position = gecs_Component_get(context.entities[i], context.position);
         gunit_assert("surviving entity remains alive", gecs_Entity_alive(context.entities[i]));
-        gunit_assert(
-            "surviving component retains value",
-            position != NULL && position->x == (int32_t)i + 3 && position->y == 4
-        );
+        gunit_assert("surviving entity still has its position", position != NULL);
+        gunit_assert("surviving position retains its x coordinate", position->x == (int32_t)i + 3);
+        gunit_assert("surviving position retains its y coordinate", position->y == 4);
         gunit_assert("each survivor is iterable", seen[i]);
     }
 )
@@ -203,9 +201,10 @@ GUNIT_TEST(recycled_entities_reject_stale_component_writes,
     gecs_Entity replacement = gecs_spawn(context.world);
     gecs__TestPosition position = {3, 4};
     gunit_assert("recycled slot has new generation", replacement.id != 0 && replacement.id != stale.id);
+    gunit_assert("old handle stays stale", !gecs_Entity_alive(stale));
     gunit_assert(
-        "stale entity rejected",
-        !gecs_Entity_alive(stale) && gecs_Component_set(stale, context.position, &position) == NULL
+        "component write rejects the stale handle",
+        gecs_Component_set(stale, context.position, &position) == NULL
     );
     gunit_assert("replacement entity alive", gecs_Entity_alive(replacement));
 )
@@ -334,10 +333,8 @@ GUNIT_TEST(frozen_world_can_be_cleared,
     gunit_assert("create clear fixtures", gecs__test_clear_create(&context));
     gecs_World_freeze(context.world);
     gecs_World_clear(context.world);
-    gunit_assert(
-        "clear still works when frozen",
-        gecs__test_clear_destroyed == 3 && !gecs_Entity_alive(context.entities[0])
-    );
+    gunit_assert("clear destroys components and context while frozen", gecs__test_clear_destroyed == 3);
+    gunit_assert("clear invalidates the entity while frozen", !gecs_Entity_alive(context.entities[0]));
     gecs__test_context_free(&context);
     gunit_assert("free does not destroy twice", gecs__test_clear_destroyed == 3);
 )
@@ -490,10 +487,8 @@ GUNIT_TEST(component_insertions_preserve_aliased_values_with_failing_allocator,
                 gecs_Component_count(context.world, context.bytes) == before
             );
             source = gecs_Component_get(context.entities[0], context.bytes);
-            gunit_assert(
-                "failed insertion preserves source value",
-                source != NULL && memcmp(source, &expected, sizeof(expected)) == 0
-            );
+            gunit_assert("failed insertion leaves the source component present", source != NULL);
+            gunit_assert("failed insertion preserves source bytes", memcmp(source, &expected, sizeof(expected)) == 0);
             context.allocator.fail = false;
             inserted = gecs_Component_set(context.entities[i], context.bytes, source);
             gunit_assert("failed insertion can retry when allocator recovers", inserted != NULL);
@@ -503,10 +498,8 @@ GUNIT_TEST(component_insertions_preserve_aliased_values_with_failing_allocator,
             "successful insertion adds one component",
             gecs_Component_count(context.world, context.bytes) == before + 1
         );
-        gunit_assert(
-            "successful insertion copies complete source value",
-            stored != NULL && memcmp(stored, &expected, sizeof(expected)) == 0
-        );
+        gunit_assert("target entity has the inserted component", stored != NULL);
+        gunit_assert("inserted component matches the source bytes", memcmp(stored, &expected, sizeof(expected)) == 0);
     }
 )
 
@@ -574,28 +567,28 @@ GUNIT_TEST(selective_world_clear_preserves_contexts,
     GUNIT_SECTION("entity-only clear preserves every context", {
         gecs_World_clear_entities(context.world);
         gunit_assert("all entity component values destroyed", gecs__test_clear_destroyed == 2);
-        gunit_assert(
-            "entity handles invalidated",
-            !gecs_Entity_alive(context.entities[0]) && !gecs_Entity_alive(context.entities[1])
-        );
+        gunit_assert("first entity invalidated", !gecs_Entity_alive(context.entities[0]));
+        gunit_assert("second entity invalidated", !gecs_Entity_alive(context.entities[1]));
         gunit_assert("entity components removed", gecs_Component_count(context.world, context.position) == 0);
         const int32_t* ordinary = gecs_context_get(context.world, context.context);
         const int32_t* first = gecs_context_get(context.world, context.preserved_contexts[0]);
         const int32_t* second = gecs_context_get(context.world, context.preserved_contexts[1]);
-        gunit_assert("ordinary context preserved", ordinary != NULL && *ordinary == 42);
-        gunit_assert("first selected context preserved", first != NULL && *first == 11);
-        gunit_assert("second selected context preserved", second != NULL && *second == 22);
+        gunit_assert("ordinary context still exists", ordinary != NULL);
+        gunit_assert("ordinary context retains its value", *ordinary == 42);
+        gunit_assert("first selected context still exists", first != NULL);
+        gunit_assert("first selected context retains its value", *first == 11);
+        gunit_assert("second selected context still exists", second != NULL);
+        gunit_assert("second selected context retains its value", *second == 22);
     })
 
     GUNIT_SECTION("clear preserves one selected context", {
         gecs_World_clear_except(context.world, context.preserved_contexts[0]);
         gunit_assert("entities and unselected contexts destroyed", gecs__test_clear_destroyed == 4);
-        gunit_assert(
-            "entity handles invalidated",
-            !gecs_Entity_alive(context.entities[0]) && !gecs_Entity_alive(context.entities[1])
-        );
+        gunit_assert("first entity invalidated", !gecs_Entity_alive(context.entities[0]));
+        gunit_assert("second entity invalidated", !gecs_Entity_alive(context.entities[1]));
         const int32_t* kept = gecs_context_get(context.world, context.preserved_contexts[0]);
-        gunit_assert("selected context preserved", kept != NULL && *kept == 11);
+        gunit_assert("selected context still exists", kept != NULL);
+        gunit_assert("selected context retains its value", *kept == 11);
         gunit_assert("ordinary context removed", gecs_context_get(context.world, context.context) == NULL);
         gunit_assert("other context removed", gecs_context_get(context.world, context.preserved_contexts[1]) == NULL);
         gecs_World_clear(context.world);
@@ -605,14 +598,14 @@ GUNIT_TEST(selective_world_clear_preserves_contexts,
     GUNIT_SECTION("clear preserves multiple selected contexts", {
         gecs_World_clear_except_many(context.world, context.preserved_contexts, 2);
         gunit_assert("entities and unselected context destroyed", gecs__test_clear_destroyed == 3);
-        gunit_assert(
-            "entity handles invalidated",
-            !gecs_Entity_alive(context.entities[0]) && !gecs_Entity_alive(context.entities[1])
-        );
+        gunit_assert("first entity invalidated", !gecs_Entity_alive(context.entities[0]));
+        gunit_assert("second entity invalidated", !gecs_Entity_alive(context.entities[1]));
         const int32_t* first = gecs_context_get(context.world, context.preserved_contexts[0]);
         const int32_t* second = gecs_context_get(context.world, context.preserved_contexts[1]);
-        gunit_assert("first selected context preserved", first != NULL && *first == 11);
-        gunit_assert("second selected context preserved", second != NULL && *second == 22);
+        gunit_assert("first selected context still exists", first != NULL);
+        gunit_assert("first selected context retains its value", *first == 11);
+        gunit_assert("second selected context still exists", second != NULL);
+        gunit_assert("second selected context retains its value", *second == 22);
         gunit_assert("unselected context removed", gecs_context_get(context.world, context.context) == NULL);
         gecs_World_clear(context.world);
         gunit_assert("later clear destroys retained contexts once", gecs__test_clear_destroyed == 5);

@@ -35,6 +35,7 @@ static gplatform_render__Context* gplatform_render__current;
 
 static void gplatform_render__create(gplatform_render__Context* ctx);
 static void gplatform_render__free(void* user);
+static bool gplatform_render__same_texture(Texture2D actual, gplatform_Texture expected);
 static bool gplatform_render__rejects_input(
     gplatform_render__Context* ctx,
     const char* type,
@@ -128,16 +129,15 @@ GUNIT_TEST(texture_load,
         ctx.texture = gplatform_texture_load(".png", bytes, sizeof(bytes));
 
         gunit_assert("decode runs once", ctx.decodes == 1);
-        gunit_assert("decode gets the original bytes and size", ctx.bytes == bytes && ctx.size == (int)sizeof(bytes));
+        gunit_assert("decode receives original buffer", ctx.bytes == bytes);
+        gunit_assert("decode receives full buffer length", ctx.size == (int)sizeof(bytes));
         gunit_assert("decode gets the file type", strcmp(ctx.type, ".png") == 0);
         gunit_assert("upload runs once", ctx.uploads == 1);
         gunit_assert("decoded image is released once", ctx.image_unloads == 1);
 
         gunit_assert("texture handle is preserved", ctx.texture.id == ctx.uploaded.id);
-        gunit_assert(
-            "texture dimensions are preserved",
-            ctx.texture.width == ctx.uploaded.width && ctx.texture.height == ctx.uploaded.height
-        );
+        gunit_assert("texture width preserved", ctx.texture.width == ctx.uploaded.width);
+        gunit_assert("texture height preserved", ctx.texture.height == ctx.uploaded.height);
         gunit_assert("texture mipmaps are preserved", ctx.texture.mipmaps == ctx.uploaded.mipmaps);
         gunit_assert("texture format is preserved", ctx.texture.format == ctx.uploaded.format);
         gunit_assert("backend accepts the returned texture", gplatform_texture_valid(ctx.texture));
@@ -210,28 +210,26 @@ GUNIT_TEST(draw_preserves_texture_and_all_parameters,
     gplatform_draw_texture(texture, params);
 
     gunit_assert("one draw reaches the backend", ctx.draws == 1);
-    gunit_assert(
-        "texture metadata forwarded",
-        ctx.drawn.id == texture.id && ctx.drawn.width == texture.width && ctx.drawn.height == texture.height
-            && ctx.drawn.mipmaps == texture.mipmaps && ctx.drawn.format == texture.format
-    );
-    gunit_assert(
-        "source rectangle forwarded",
-        ctx.source.x == params.source.x && ctx.source.y == params.source.y
-            && ctx.source.width == params.source.w && ctx.source.height == params.source.h
-    );
-    gunit_assert(
-        "destination rectangle forwarded",
-        ctx.dest.x == params.dest.x && ctx.dest.y == params.dest.y
-            && ctx.dest.width == params.dest.w && ctx.dest.height == params.dest.h
-    );
-    gunit_assert("origin forwarded", ctx.origin.x == params.origin.x && ctx.origin.y == params.origin.y);
+    gunit_assert("draw forwards texture metadata", gplatform_render__same_texture(ctx.drawn, texture));
+
+    gunit_assert("source rectangle left edge", ctx.source.x == params.source.x);
+    gunit_assert("source rectangle top edge", ctx.source.y == params.source.y);
+    gunit_assert("source rectangle width", ctx.source.width == params.source.w);
+    gunit_assert("source rectangle height", ctx.source.height == params.source.h);
+
+    gunit_assert("destination rectangle left edge", ctx.dest.x == params.dest.x);
+    gunit_assert("destination rectangle top edge", ctx.dest.y == params.dest.y);
+    gunit_assert("destination rectangle width", ctx.dest.width == params.dest.w);
+    gunit_assert("destination rectangle height", ctx.dest.height == params.dest.h);
+
+    gunit_assert("horizontal origin forwarded", ctx.origin.x == params.origin.x);
+    gunit_assert("vertical origin forwarded", ctx.origin.y == params.origin.y);
     gunit_assert("rotation forwarded", ctx.rotation == params.rotation);
-    gunit_assert(
-        "tint forwarded",
-        ctx.tint.r == params.tint.r && ctx.tint.g == params.tint.g && ctx.tint.b == params.tint.b
-            && ctx.tint.a == params.tint.a
-    );
+
+    gunit_assert("tint red forwarded", ctx.tint.r == params.tint.r);
+    gunit_assert("tint green forwarded", ctx.tint.g == params.tint.g);
+    gunit_assert("tint blue forwarded", ctx.tint.b == params.tint.b);
+    gunit_assert("tint alpha forwarded", ctx.tint.a == params.tint.a);
 )
 
 GUNIT_TEST(unload_preserves_backend_handle,
@@ -242,11 +240,7 @@ GUNIT_TEST(unload_preserves_backend_handle,
     gplatform_texture_unload(texture);
 
     gunit_assert("one unload reaches the backend", ctx.texture_unloads == 1);
-    gunit_assert(
-        "unload receives the original handle and metadata",
-        ctx.unloaded.id == texture.id && ctx.unloaded.width == texture.width && ctx.unloaded.height == texture.height
-            && ctx.unloaded.mipmaps == texture.mipmaps && ctx.unloaded.format == texture.format
-    );
+    gunit_assert("unload forwards texture metadata", gplatform_render__same_texture(ctx.unloaded, texture));
 )
 
 GUNIT_TEST(frame_and_background_reach_backend,
@@ -257,11 +251,12 @@ GUNIT_TEST(frame_and_background_reach_backend,
     gplatform_clear_background((gcolor_Color) {.r = 1, .g = 2, .b = 3, .a = 4});
     gplatform_end_drawing();
 
-    gunit_assert("frame boundaries forwarded", ctx.begins == 1 && ctx.ends == 1);
-    gunit_assert(
-        "background color forwarded",
-        ctx.background.r == 1 && ctx.background.g == 2 && ctx.background.b == 3 && ctx.background.a == 4
-    );
+    gunit_assert("drawing begins once", ctx.begins == 1);
+    gunit_assert("drawing ends once", ctx.ends == 1);
+    gunit_assert("background red forwarded", ctx.background.r == 1);
+    gunit_assert("background green forwarded", ctx.background.g == 2);
+    gunit_assert("background blue forwarded", ctx.background.b == 3);
+    gunit_assert("background alpha forwarded", ctx.background.a == 4);
 )
 
 gunit_main();
@@ -290,8 +285,27 @@ static bool gplatform_render__rejects_input(
     if (!gunit_check("invalid input produces no texture", !gplatform_texture_valid(ctx->texture))) {
         return false;
     }
-    return gunit_check(
-        "invalid input bypasses the backend",
-        ctx->decodes == 0 && ctx->uploads == 0 && ctx->image_unloads == 0
-    );
+    if (!gunit_check("invalid input skips decoding", ctx->decodes == 0)) {
+        return false;
+    }
+    if (!gunit_check("invalid input skips uploading", ctx->uploads == 0)) {
+        return false;
+    }
+    return gunit_check("invalid input has no image to unload", ctx->image_unloads == 0);
+}
+
+static bool gplatform_render__same_texture(Texture2D actual, gplatform_Texture expected) {
+    if (!gunit_check("texture id preserved", actual.id == expected.id)) {
+        return false;
+    }
+    if (!gunit_check("texture width preserved", actual.width == expected.width)) {
+        return false;
+    }
+    if (!gunit_check("texture height preserved", actual.height == expected.height)) {
+        return false;
+    }
+    if (!gunit_check("texture mipmaps preserved", actual.mipmaps == expected.mipmaps)) {
+        return false;
+    }
+    return gunit_check("texture format preserved", actual.format == expected.format);
 }

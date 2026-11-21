@@ -53,10 +53,11 @@ GUNIT_TEST(window_properties,
     })
 
     GUNIT_SECTION("returns nil for an unknown property", {
-        const char* source =
-            "assert(window.unknown == nil)\n"
-            "assert(type(Window) == 'table')\n";
-        gunit_assert("read an unknown window property", gwindow__test_run(context.lua, source));
+        gunit_assert("unknown property is nil", gwindow__test_run(context.lua, "assert(window.unknown == nil)"));
+    })
+
+    GUNIT_SECTION("publishes the Window table", {
+        gunit_assert("Window is a table", gwindow__test_run(context.lua, "assert(type(Window) == 'table')"));
     })
 
     GUNIT_SECTION("rejects assigning to a property", {

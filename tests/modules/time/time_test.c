@@ -52,7 +52,8 @@ GUNIT_TEST(once_timer_pause_prevents_finish,
     gtime_Timer timer = gtime_Timer_new(2, GTIME_TIMER_ONCE);
     gtime_Timer_pause(&timer);
     gtime_Timer_tick(&timer, 3);
-    gunit_assert("paused timer cannot finish", !timer.is_finished && !gtime_Timer_just_finished(&timer));
+    gunit_assert("paused timer stays unfinished", !timer.is_finished);
+    gunit_assert("paused tick reports no completion edge", !gtime_Timer_just_finished(&timer));
 )
 
 GUNIT_TEST(once_timer_finishes_only_once,
@@ -75,10 +76,8 @@ GUNIT_TEST(once_timer_reset_preserves_pause,
     gtime_Timer_finish(&timer);
     gtime_Timer_pause(&timer);
     gtime_Timer_reset(&timer);
-    gunit_assert(
-        "reset clears finished state and preserves pause",
-        !timer.is_finished && gtime_Timer_is_paused(&timer)
-    );
+    gunit_assert("reset clears finished state", !timer.is_finished);
+    gunit_assert("reset preserves pause", gtime_Timer_is_paused(&timer));
 )
 
 GUNIT_TEST(once_timer_manual_completion,
@@ -111,7 +110,8 @@ GUNIT_TEST(once_timer_duration_changes_apply_next_tick,
 GUNIT_TEST(repeating_timer_counts_multiple_completions,
     gtime_Timer timer = gtime_Timer_new(2, GTIME_TIMER_REPEATING);
     gtime_Timer_tick(&timer, 4.5f);
-    gunit_assert("two durations completed", timer.is_finished && timer.times_finished_this_tick == 2);
+    gunit_assert("tick marks the timer finished", timer.is_finished);
+    gunit_assert("tick counts two completions", timer.times_finished_this_tick == 2);
     gunit_assert("elapsed wraps to remainder", timer.stopwatch.elapsed == 0.5f);
 )
 
@@ -120,7 +120,8 @@ GUNIT_TEST(repeating_timer_pause_clears_completion_edge,
     gtime_Timer_tick(&timer, 4.5f);
     gtime_Timer_pause(&timer);
     gtime_Timer_tick(&timer, 1);
-    gunit_assert("paused tick has no completion", !timer.is_finished && timer.times_finished_this_tick == 0);
+    gunit_assert("paused tick clears finished state", !timer.is_finished);
+    gunit_assert("paused tick counts no completions", timer.times_finished_this_tick == 0);
     gunit_assert("elapsed stays unchanged", timer.stopwatch.elapsed == 0.5f);
 )
 
@@ -133,7 +134,8 @@ GUNIT_TEST(repeating_timer_resumes_to_next_completion,
     gunit_assert("partial duration unfinished", !timer.is_finished);
 
     gtime_Timer_tick(&timer, 0.5f);
-    gunit_assert("exact completion counted", timer.is_finished && timer.times_finished_this_tick == 1);
+    gunit_assert("tick finishes at the deadline", timer.is_finished);
+    gunit_assert("deadline tick counts one completion", timer.times_finished_this_tick == 1);
     gunit_assert("elapsed wraps to zero", timer.stopwatch.elapsed == 0);
 )
 
@@ -141,10 +143,8 @@ GUNIT_TEST(repeating_zero_duration_saturates_completion_count,
     gtime_Timer timer = gtime_Timer_new(2, GTIME_TIMER_REPEATING);
     gtime_Timer_set_duration(&timer, 0);
     gtime_Timer_tick(&timer, 0.1f);
-    gunit_assert(
-        "zero duration saturates completion count",
-        timer.is_finished && timer.times_finished_this_tick == UINT32_MAX
-    );
+    gunit_assert("zero duration timer finishes", timer.is_finished);
+    gunit_assert("zero duration saturates completion count", timer.times_finished_this_tick == UINT32_MAX);
     gunit_assert("zero duration fraction defined", gtime_Timer_fraction(&timer) == 0);
 )
 
@@ -153,7 +153,8 @@ GUNIT_TEST(zero_duration_once_mode_finishes_once,
     gtime_Timer_set_mode(&timer, GTIME_TIMER_ONCE);
     gtime_Timer_reset(&timer);
     gtime_Timer_tick(&timer, 0);
-    gunit_assert("zero duration once finishes once", timer.is_finished && timer.times_finished_this_tick == 1);
+    gunit_assert("zero duration timer finishes", timer.is_finished);
+    gunit_assert("once mode counts one completion", timer.times_finished_this_tick == 1);
 )
 
 gunit_main();

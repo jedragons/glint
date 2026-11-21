@@ -164,10 +164,8 @@ GUNIT_TEST(buffer_reserve_failure_preserves_content,
         "required capacity growth reports failure",
         !gstr_Buffer_reserve(context.alloc, &context.buffer, required_capacity)
     );
-    gunit_assert(
-        "failed reserve preserves content",
-        context.buffer.count == 8 && strcmp(gstr_Buffer_cstr(&context.buffer), "original") == 0
-    );
+    gunit_assert("failed reserve preserves length", context.buffer.count == 8);
+    gunit_assert("failed reserve preserves content", strcmp(gstr_Buffer_cstr(&context.buffer), "original") == 0);
 )
 
 GUNIT_TEST(buffer_appends_formatted_text,
@@ -192,10 +190,8 @@ GUNIT_TEST(buffer_clear_leaves_empty_string,
     gstr__test_context_create(&context);
     gunit_assert("append initial string", gstr_Buffer_append_cstr(context.alloc, &context.buffer, "content"));
     gstr_Buffer_clear(&context.buffer);
-    gunit_assert(
-        "clear leaves empty string",
-        context.buffer.count == 0 && strcmp(gstr_Buffer_cstr(&context.buffer), "") == 0
-    );
+    gunit_assert("clear resets the length", context.buffer.count == 0);
+    gunit_assert("clear leaves an empty C string", gstr_Buffer_cstr(&context.buffer)[0] == '\0');
 )
 
 GUNIT_TEST(buffer_appends_character,

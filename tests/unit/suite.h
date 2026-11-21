@@ -28,4 +28,5 @@ static inline void gtest__register(gtest__Suite* suite, gunit_Test* test) {
 #define gunit_register(test) gtest__register(&GTEST_SUITE, (test))
 #define gunit_first GTEST_SUITE.first
 
-#define GTEST_PLATFORM_DECLARE(result, name, params) result GTEST_SYMBOL(name) params;
+// The suite aliases only those platform functions it overrides.
+#define GTEST_PLATFORM_DECLARE(result, name, params) result gplatform_##name params;

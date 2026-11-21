@@ -79,10 +79,9 @@ GUNIT_TEST(headless_audio_import,
 
     gecs_World* world = glint_world(context.game);
     const gaudio_Service* service = gecs_context_get(world, GECS_CONTEXT(world, gaudio_Service));
-    gunit_assert(
-        "headless host remains unavailable",
-        service != NULL && !service->device.open && service->module_owned
-    );
+    gunit_assert("headless game publishes an audio service", service != NULL);
+    gunit_assert("audio device stays closed", !service->device.open);
+    gunit_assert("audio module owns the service", service->module_owned);
     gunit_assert("headless game steps", glint_frame(context.alloc, context.game, 0.1f));
 )
 
@@ -96,7 +95,8 @@ GUNIT_TEST(headless_dim2_import,
 
     gecs_World* world = glint_world(context.game);
     const gdim2_Service* service = gecs_context_get(world, GECS_CONTEXT(world, gdim2_Service));
-    gunit_assert("headless 2D module loaded without graphics", service != NULL && service->instance == NULL);
+    gunit_assert("headless game publishes the 2D service", service != NULL);
+    gunit_assert("headless service has no graphics instance", service->instance == NULL);
     gunit_assert("headless game steps", glint_frame(context.alloc, context.game, 0.1f));
 )
 
@@ -132,15 +132,18 @@ GUNIT_TEST(game_lifecycle,
         gunit_assert("run first frame", glint_frame(context.alloc, context.game, 2.1f));
         const gtime_Timer* timer = gecs_Component_get(entity, type);
         gunit_assert("entity still has a timer", timer != NULL);
-        gunit_assert("timer finishes once", timer->is_finished && timer->times_finished_this_tick == 1);
+        gunit_assert("timer is finished", timer->is_finished);
+        gunit_assert("timer finished once this tick", timer->times_finished_this_tick == 1);
     })
 
     GUNIT_SECTION("each frame updates and renders the custom module", {
         gunit_assert("run first frame", glint_frame(context.alloc, context.game, 2.1f));
-        gunit_assert("update and render run once", context.counts.update == 1 && context.counts.render == 1);
+        gunit_assert("update runs once", context.counts.update == 1);
+        gunit_assert("render runs once", context.counts.render == 1);
 
         gunit_assert("run second frame", glint_frame(context.alloc, context.game, 0.1f));
-        gunit_assert("update and render run again", context.counts.update == 2 && context.counts.render == 2);
+        gunit_assert("update runs twice", context.counts.update == 2);
+        gunit_assert("render runs twice", context.counts.render == 2);
         gunit_assert("successful frame has no error", strcmp(glint_error(context.game), "") == 0);
     })
 
@@ -165,7 +168,8 @@ GUNIT_TEST(default_mount_snapshots_working_directory,
     gunit_assert("leave asset directory", GLINT_TEST_CHDIR("..") == 0);
     size_t size = 0;
     context.source = gvfs_read(context.alloc, glint_vfs(context.game), "/game.lua", &size);
-    gunit_assert("default mount stays anchored after chdir", context.source != NULL && size > 0);
+    gunit_assert("default mount resolves the file after chdir", context.source != NULL);
+    gunit_assert("mounted file contains data", size > 0);
     gunit_assert("restore working directory", GLINT_TEST_CHDIR(context.original_directory) == 0);
 )
 
@@ -291,19 +295,19 @@ static bool ggame_test__on_load(gecs_World* world, void* user, char* error, size
     galloc_Allocator alloc = glint_allocator(world);
     gvfsmod_Service* vfs = gecs_context_get(world, GECS_CONTEXT(world, gvfsmod_Service));
     gscript_Service* script = gecs_context_get(world, GECS_CONTEXT(world, gscript_Service));
-    if (!gunit_check(
-            "required services available",
-            (vfs != NULL) && (vfs->vfs != NULL) && (script != NULL) && (script->script != NULL)
-        )) {
+    if (!gunit_check("game provides the filesystem", vfs != NULL && vfs->vfs != NULL)) {
+        return false;
+    }
+    if (!gunit_check("game provides the script runtime", script != NULL && script->script != NULL)) {
         return false;
     }
     gecs_Component type =
         gecs_context_register(world, "LifetimeProbe", sizeof(ggame_test__LifetimeProbe), ggame_test__destroy_probe);
     ggame_test__LifetimeProbe probe = {.alloc = alloc, .vfs = vfs->vfs, .script = script->script, .counts = user};
-    if (!gunit_check(
-            "Could not register lifetime probe",
-            (type != 0) && (gecs_context_set(world, type, &probe) != NULL)
-        )) {
+    if (!gunit_check("register the lifetime probe", type != 0)) {
+        return false;
+    }
+    if (!gunit_check("install the lifetime probe", gecs_context_set(world, type, &probe) != NULL)) {
         return false;
     }
     ((ggame_test__Counts*)user)->load += 1;

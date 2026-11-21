@@ -106,12 +106,7 @@ void emscripten_cancel_main_loop(void) {
 void InitWindow(int width, int height, const char* title) {
     glint__test_state->init_width = width;
     glint__test_state->init_height = height;
-    snprintf(
-        glint__test_state->init_title,
-        sizeof(glint__test_state->init_title),
-        "%s",
-        title != NULL ? title : ""
-    );
+    snprintf(glint__test_state->init_title, sizeof(glint__test_state->init_title), "%s", title != NULL ? title : "");
     glint__test_state->window_ready = true;
 }
 
@@ -251,7 +246,8 @@ GUNIT_TEST(windowed_game,
     })
 
     GUNIT_SECTION("creation applies window configuration", {
-        gunit_assert("window dimensions applied", context.state.init_width == 640 && context.state.init_height == 480);
+        gunit_assert("window width applied", context.state.init_width == 640);
+        gunit_assert("window height applied", context.state.init_height == 480);
         gunit_assert("window title applied", strcmp(context.state.init_title, "windowed") == 0);
         gunit_assert("vsync is enabled", (context.state.config_flags & FLAG_VSYNC_HINT) != 0);
         gunit_assert("window is resizable", (context.state.config_flags & FLAG_WINDOW_RESIZABLE) != 0);
@@ -264,14 +260,16 @@ GUNIT_TEST(windowed_game,
         const gaudio_Service* audio = gecs_context_get(world, GECS_CONTEXT(world, gaudio_Service));
 
         gunit_assert("module provides audio service", audio != NULL);
-        gunit_assert("audio module owns a ready device", audio->module_owned && gaudio_Device_ready(&audio->device));
+        gunit_assert("audio module owns the device", audio->module_owned);
+        gunit_assert("audio device is ready", gaudio_Device_ready(&audio->device));
         gunit_assert("audio device opened once", context.state.audio_opens == 1);
     })
 
     GUNIT_SECTION("a manual frame draws once", {
         gunit_assert("run windowed frame", glint_frame(context.alloc, context.game, 0.016f));
 
-        gunit_assert("drawing begins and ends once", context.state.begins == 1 && context.state.ends == 1);
+        gunit_assert("drawing begins once", context.state.begins == 1);
+        gunit_assert("drawing ends once", context.state.ends == 1);
         gunit_assert("background is cleared once", context.state.clears == 1);
     })
 
@@ -279,7 +277,8 @@ GUNIT_TEST(windowed_game,
         gunit_assert("run native loop", glint_run(context.alloc, context.game));
 
         gunit_assert("loop polls through the close request", context.state.polls == 4);
-        gunit_assert("loop draws three complete frames", context.state.begins == 3 && context.state.ends == 3);
+        gunit_assert("three frames begin", context.state.begins == 3);
+        gunit_assert("three frames end", context.state.ends == 3);
     })
 )
 
@@ -293,7 +292,8 @@ GUNIT_TEST(window_shutdown_closes_audio_first,
 
     gunit_assert("audio device closes once", context.state.audio_closes == 1);
     gunit_assert("audio device closes while the window is still open", context.state.audio_closed_with_window);
-    gunit_assert("window closes once", context.state.close_calls == 1 && !context.state.window_ready);
+    gunit_assert("window closes once", context.state.close_calls == 1);
+    gunit_assert("window is no longer ready", !context.state.window_ready);
 )
 
 #else
@@ -312,7 +312,8 @@ GUNIT_TEST(web_game_loop,
         gunit_assert("duplicate scheduling is rejected", !glint_run(context.alloc, context.game));
 
         gunit_assert("browser tick", glint__test_browser_tick());
-        gunit_assert("scheduled frame draws", context.state.begins == 1 && context.state.ends == 1);
+        gunit_assert("scheduled frame begins", context.state.begins == 1);
+        gunit_assert("scheduled frame ends", context.state.ends == 1);
     })
 
     GUNIT_SECTION("normal completion can destroy the game", {
@@ -323,10 +324,9 @@ GUNIT_TEST(web_game_loop,
         for (size_t poll = 0; poll < 4; poll++) {
             gunit_assert("browser tick through the close request", glint__test_browser_tick());
         }
-        gunit_assert(
-            "completion destroys game",
-            context.completed && context.game == NULL && context.state.close_calls == 1
-        );
+        gunit_assert("completion callback ran successfully", context.completed);
+        gunit_assert("completion destroyed the game", context.game == NULL);
+        gunit_assert("window closed once", context.state.close_calls == 1);
     })
 
     GUNIT_SECTION("destruction cancels the loop without invoking completion", {
@@ -334,7 +334,8 @@ GUNIT_TEST(web_game_loop,
             "schedule game with completion",
             glint_run_with_completion(context.alloc, context.game, glint__test_record_completion, &context)
         );
-        gunit_assert("loop awaits browser frames", context.state.scheduled_frame != NULL && !context.completed);
+        gunit_assert("browser frame is scheduled", context.state.scheduled_frame != NULL);
+        gunit_assert("completion waits for browser frames", !context.completed);
         gunit_assert("browser tick", glint__test_browser_tick());
         gunit_assert("loop remains scheduled after first tick", context.state.scheduled_frame != NULL);
         gunit_assert("completion has not run", !context.completed);
@@ -342,7 +343,8 @@ GUNIT_TEST(web_game_loop,
         gunit_assert("destroy active game", glint_destroy(context.alloc, context.game));
         context.game = NULL;
 
-        gunit_assert("destroy cancels loop", context.state.scheduled_frame == NULL && context.state.cancellations == 1);
+        gunit_assert("destruction clears the scheduled frame", context.state.scheduled_frame == NULL);
+        gunit_assert("browser loop cancelled once", context.state.cancellations == 1);
         gunit_assert("destroy never invokes completion", !context.completed);
     })
 )
@@ -359,10 +361,9 @@ GUNIT_TEST(web_loop_failure_completion,
         glint_run_with_completion(context.alloc, context.game, glint__test_failed_and_destroy, &context)
     );
     gunit_assert("browser tick", glint__test_browser_tick());
-    gunit_assert(
-        "failure completes and destroys game",
-        context.completed && context.game == NULL && context.state.close_calls == 1
-    );
+    gunit_assert("completion received the frame error", context.completed);
+    gunit_assert("completion destroyed the game", context.game == NULL);
+    gunit_assert("window closed once", context.state.close_calls == 1);
 )
 
 GUNIT_TEST(web_loop_preserves_allocator_state,
@@ -381,7 +382,8 @@ GUNIT_TEST(web_loop_preserves_allocator_state,
 
     gunit_assert("schedule allocator game", glint_run(context.alloc, context.game));
     gunit_assert("browser tick", glint__test_browser_tick());
-    gunit_assert("allocator check ran in scheduled frame", context.state.begins == 1 && context.state.ends == 1);
+    gunit_assert("scheduled frame begins", context.state.begins == 1);
+    gunit_assert("scheduled frame ends", context.state.ends == 1);
 )
 
 GUNIT_TEST(web_game_after_window_close_request,
@@ -397,10 +399,8 @@ GUNIT_TEST(web_game_after_window_close_request,
     })
 
     GUNIT_SECTION("the loop stops but leaves the game alive", {
-        gunit_assert(
-            "window close cancels loop",
-            context.state.scheduled_frame == NULL && context.state.cancellations == 1
-        );
+        gunit_assert("window close clears the scheduled frame", context.state.scheduled_frame == NULL);
+        gunit_assert("browser loop cancelled once", context.state.cancellations == 1);
         gunit_assert("window close does not destroy game", context.state.close_calls == 0);
     })
 
@@ -427,12 +427,12 @@ GUNIT_TEST(web_script_error_keeps_loop_running,
     lua_setglobal(lua, "Timer");
     gunit_assert("schedule game", glint_run(context.alloc, context.game));
     gunit_assert("browser tick", glint__test_browser_tick());
-    gunit_assert(
-        "script callback failure keeps browser loop running",
-        context.state.scheduled_frame != NULL && context.state.cancellations == 0 && context.state.begins == 1
-    );
+    gunit_assert("browser frame remains scheduled", context.state.scheduled_frame != NULL);
+    gunit_assert("browser loop was never cancelled", context.state.cancellations == 0);
+    gunit_assert("frame draws despite script error", context.state.begins == 1);
     glint__test_context_free(&context);
-    gunit_assert("destroy cancels loop", context.state.cancellations == 1 && context.state.close_calls == 1);
+    gunit_assert("browser loop cancelled once", context.state.cancellations == 1);
+    gunit_assert("window closed once", context.state.close_calls == 1);
 )
 
 #endif
@@ -453,10 +453,9 @@ GUNIT_TEST(headless_game,
     })
 
     GUNIT_SECTION("creation applies the log level without configuring a window", {
-        gunit_assert(
-            "headless skips window configuration",
-            context.state.init_width == 0 && context.state.config_flags == 0 && context.state.target_fps == 0
-        );
+        gunit_assert("headless leaves window width unset", context.state.init_width == 0);
+        gunit_assert("headless leaves window flags unset", context.state.config_flags == 0);
+        gunit_assert("headless leaves target FPS unset", context.state.target_fps == 0);
         gunit_assert("headless log level applied", glog_get_level() == GLOG_WARN);
     })
 
@@ -512,13 +511,15 @@ GUNIT_TEST(additional_mount,
     GUNIT_SECTION("assets are readable in the mounted directory", {
         size_t size = 0;
         context.source = gvfs_read(context.alloc, glint_vfs(context.game), "/extra/atlas.json", &size);
-        gunit_assert("additional mount resolves asset", context.source != NULL && size != 0);
+        gunit_assert("additional mount resolves asset", context.source != NULL);
+        gunit_assert("mounted asset contains data", size != 0);
     })
 
     GUNIT_SECTION("assets are still readable at the root", {
         size_t size = 0;
         context.source = gvfs_read(context.alloc, glint_vfs(context.game), "/game.lua", &size);
-        gunit_assert("asset root remains readable", context.source != NULL && size != 0);
+        gunit_assert("asset root remains readable", context.source != NULL);
+        gunit_assert("root asset contains data", size != 0);
     })
 )
 
