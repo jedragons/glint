@@ -1,0 +1,361 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 25,
+        "patch": 0
+    },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+                "GLINT_BUILD_TESTS": true
+            }
+        },
+        {"name": "linux", "hidden": true, "inherits": "base", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}},
+        {"name": "macos", "hidden": true, "inherits": "base", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}},
+        {"name": "windows", "hidden": true, "inherits": "base", "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows"}},
+        {"name": "web-settings", "hidden": true, "inherits": "base", "cacheVariables": {"PLATFORM": "Web", "GLINT_BUILD_TESTS": false}},
+        {
+            "name": "default",
+            "inherits": "base",
+            "description": "Native compiler from the environment; compilation database: build/default/compile_commands.json."
+        },
+        {"name": "default-debug", "inherits": "default"},
+        {"name": "default-release", "inherits": "default", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {"name": "debug", "inherits": "default-debug"},
+        {"name": "release", "inherits": "default-release"},
+        {
+            "name": "linux-gcc-x86_64",
+            "inherits": "linux",
+            "description": "Linux x86_64 with gcc; cross builds require target libraries and a matching toolchain/sysroot.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/linux.cmake",
+            "cacheVariables": {
+                "GLINT_TOOLCHAIN_COMPILER": "gcc",
+                "GLINT_TARGET_ARCH": "x86_64"
+            }
+        },
+        {"name": "linux-gcc-x86_64-debug", "inherits": "linux-gcc-x86_64"},
+        {"name": "linux-gcc-x86_64-release", "inherits": "linux-gcc-x86_64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "linux-gcc-arm64",
+            "inherits": "linux",
+            "description": "Linux arm64 with gcc; cross builds require target libraries and a matching toolchain/sysroot.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/linux.cmake",
+            "cacheVariables": {
+                "GLINT_TOOLCHAIN_COMPILER": "gcc",
+                "GLINT_TARGET_ARCH": "arm64"
+            }
+        },
+        {"name": "linux-gcc-arm64-debug", "inherits": "linux-gcc-arm64"},
+        {"name": "linux-gcc-arm64-release", "inherits": "linux-gcc-arm64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "linux-tcc-x86_64",
+            "inherits": "linux",
+            "description": "Linux x86_64 with tcc; cross builds require target libraries and a matching toolchain/sysroot. Cross compiler: x86_64-tcc.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/linux.cmake",
+            "cacheVariables": {
+                "GLINT_TOOLCHAIN_COMPILER": "tcc",
+                "GLINT_TARGET_ARCH": "x86_64"
+            }
+        },
+        {"name": "linux-tcc-x86_64-debug", "inherits": "linux-tcc-x86_64"},
+        {"name": "linux-tcc-x86_64-release", "inherits": "linux-tcc-x86_64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "linux-tcc-arm64",
+            "inherits": "linux",
+            "description": "Linux arm64 with tcc; cross builds require target libraries and a matching toolchain/sysroot. Cross compiler: arm64-tcc.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/linux.cmake",
+            "cacheVariables": {
+                "GLINT_TOOLCHAIN_COMPILER": "tcc",
+                "GLINT_TARGET_ARCH": "arm64"
+            }
+        },
+        {"name": "linux-tcc-arm64-debug", "inherits": "linux-tcc-arm64"},
+        {"name": "linux-tcc-arm64-release", "inherits": "linux-tcc-arm64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "linux-clang-x86_64",
+            "inherits": "linux",
+            "description": "Linux x86_64 with clang; cross builds require target libraries and a matching toolchain/sysroot.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/linux.cmake",
+            "cacheVariables": {
+                "GLINT_TOOLCHAIN_COMPILER": "clang",
+                "GLINT_TARGET_ARCH": "x86_64"
+            }
+        },
+        {"name": "linux-clang-x86_64-debug", "inherits": "linux-clang-x86_64"},
+        {"name": "linux-clang-x86_64-release", "inherits": "linux-clang-x86_64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "linux-clang-arm64",
+            "inherits": "linux",
+            "description": "Linux arm64 with clang; cross builds require target libraries and a matching toolchain/sysroot.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/linux.cmake",
+            "cacheVariables": {
+                "GLINT_TOOLCHAIN_COMPILER": "clang",
+                "GLINT_TARGET_ARCH": "arm64"
+            }
+        },
+        {"name": "linux-clang-arm64-debug", "inherits": "linux-clang-arm64"},
+        {"name": "linux-clang-arm64-release", "inherits": "linux-clang-arm64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "macos-gcc",
+            "inherits": "macos",
+            "description": "Homebrew GCC; configures successfully, but current Raylib/Cocoa dependencies need Apple Blocks syntax unsupported by GCC.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/macos.cmake",
+            "cacheVariables": {
+                "GLINT_TOOLCHAIN_COMPILER": "gcc"
+            }
+        },
+        {"name": "macos-gcc-debug", "inherits": "macos-gcc"},
+        {"name": "macos-gcc-release", "inherits": "macos-gcc", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "macos-homebrew-clang",
+            "inherits": "macos",
+            "description": "Homebrew homebrew-clang; requires brew on PATH.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/macos.cmake",
+            "cacheVariables": {
+                "GLINT_TOOLCHAIN_COMPILER": "homebrew-clang"
+            }
+        },
+        {"name": "macos-homebrew-clang-debug", "inherits": "macos-homebrew-clang"},
+        {"name": "macos-homebrew-clang-release", "inherits": "macos-homebrew-clang", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "macos-clang",
+            "inherits": "macos",
+            "description": "Apple Clang (/usr/bin/clang).",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/macos.cmake",
+            "cacheVariables": {
+                "GLINT_TOOLCHAIN_COMPILER": "clang"
+            }
+        },
+        {"name": "macos-clang-debug", "inherits": "macos-clang"},
+        {"name": "macos-clang-release", "inherits": "macos-clang", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "windows-mingw-x86_64",
+            "inherits": "base",
+            "condition": {
+                "type": "inList",
+                "string": "${hostSystemName}",
+                "list": [
+                    "Linux",
+                    "Darwin",
+                    "Windows"
+                ]
+            },
+            "description": "Windows x86_64 with MinGW-w64 GCC; cross tests use Wine when available.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/mingw.cmake",
+            "cacheVariables": {
+                "GLINT_TARGET_ARCH": "x86_64",
+                "CMAKE_C_COMPILER": "x86_64-w64-mingw32-gcc"
+            }
+        },
+        {"name": "windows-mingw-x86_64-debug", "inherits": "windows-mingw-x86_64"},
+        {"name": "windows-mingw-x86_64-release", "inherits": "windows-mingw-x86_64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "windows-mingw-arm64",
+            "inherits": "base",
+            "condition": {
+                "type": "inList",
+                "string": "${hostSystemName}",
+                "list": [
+                    "Linux",
+                    "Darwin",
+                    "Windows"
+                ]
+            },
+            "description": "Windows arm64 with LLVM-MinGW; cross tests require a compatible runner.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/mingw.cmake",
+            "cacheVariables": {
+                "GLINT_TARGET_ARCH": "arm64",
+                "CMAKE_C_COMPILER": "aarch64-w64-mingw32-clang"
+            }
+        },
+        {"name": "windows-mingw-arm64-debug", "inherits": "windows-mingw-arm64"},
+        {"name": "windows-mingw-arm64-release", "inherits": "windows-mingw-arm64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "windows-msvc-x86_64",
+            "inherits": "windows",
+            "description": "Run from a Visual Studio x64 developer shell; requires Ninja.",
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
+            "toolchainFile": "${sourceDir}/cmake/toolchains/msvc.cmake",
+            "cacheVariables": {
+                "GLINT_TARGET_ARCH": "x64",
+                "CMAKE_C_COMPILER": "cl"
+            }
+        },
+        {"name": "windows-msvc-x86_64-debug", "inherits": "windows-msvc-x86_64"},
+        {"name": "windows-msvc-x86_64-release", "inherits": "windows-msvc-x86_64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "windows-gcc-x86_64",
+            "inherits": "windows",
+            "description": "Requires a MinGW-w64 GCC distribution targeting x86_64 on PATH.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/mingw.cmake",
+            "cacheVariables": {
+                "GLINT_TARGET_ARCH": "x86_64",
+                "CMAKE_C_COMPILER": "x86_64-w64-mingw32-gcc"
+            }
+        },
+        {"name": "windows-gcc-x86_64-debug", "inherits": "windows-gcc-x86_64"},
+        {"name": "windows-gcc-x86_64-release", "inherits": "windows-gcc-x86_64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "windows-msvc-arm64",
+            "inherits": "windows",
+            "description": "Run from a Visual Studio arm64 developer shell; requires Ninja.",
+            "architecture": {
+                "value": "arm64",
+                "strategy": "external"
+            },
+            "toolchainFile": "${sourceDir}/cmake/toolchains/msvc.cmake",
+            "cacheVariables": {
+                "GLINT_TARGET_ARCH": "arm64",
+                "CMAKE_C_COMPILER": "cl"
+            }
+        },
+        {"name": "windows-msvc-arm64-debug", "inherits": "windows-msvc-arm64"},
+        {"name": "windows-msvc-arm64-release", "inherits": "windows-msvc-arm64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "windows-gcc-arm64",
+            "inherits": "windows",
+            "description": "Requires a MinGW-w64 GCC distribution targeting arm64 on PATH.",
+            "toolchainFile": "${sourceDir}/cmake/toolchains/mingw.cmake",
+            "cacheVariables": {
+                "GLINT_TARGET_ARCH": "arm64",
+                "CMAKE_C_COMPILER": "aarch64-w64-mingw32-gcc"
+            }
+        },
+        {"name": "windows-gcc-arm64-debug", "inherits": "windows-gcc-arm64"},
+        {"name": "windows-gcc-arm64-release", "inherits": "windows-gcc-arm64", "cacheVariables": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"}},
+        {
+            "name": "emscripten",
+            "inherits": "web-settings",
+            "condition": {
+                "type": "inList",
+                "string": "${hostSystemName}",
+                "list": [
+                    "Linux",
+                    "Darwin",
+                    "Windows"
+                ]
+            },
+            "description": "Browser wasm32; just configure invokes emcmake on Linux, macOS and Windows."
+        },
+        {"name": "emscripten-debug", "inherits": "emscripten"},
+        {"name": "emscripten-release", "inherits": "emscripten", "cacheVariables": {"CMAKE_BUILD_TYPE": "MinSizeRel"}}
+    ],
+    "buildPresets": [
+        {"name": "default", "configurePreset": "default"},
+        {"name": "default-debug", "configurePreset": "default-debug"},
+        {"name": "default-release", "configurePreset": "default-release"},
+        {"name": "debug", "configurePreset": "debug"},
+        {"name": "release", "configurePreset": "release"},
+        {"name": "linux-gcc-x86_64", "configurePreset": "linux-gcc-x86_64"},
+        {"name": "linux-gcc-x86_64-debug", "configurePreset": "linux-gcc-x86_64-debug"},
+        {"name": "linux-gcc-x86_64-release", "configurePreset": "linux-gcc-x86_64-release"},
+        {"name": "linux-gcc-arm64", "configurePreset": "linux-gcc-arm64"},
+        {"name": "linux-gcc-arm64-debug", "configurePreset": "linux-gcc-arm64-debug"},
+        {"name": "linux-gcc-arm64-release", "configurePreset": "linux-gcc-arm64-release"},
+        {"name": "linux-tcc-x86_64", "configurePreset": "linux-tcc-x86_64"},
+        {"name": "linux-tcc-x86_64-debug", "configurePreset": "linux-tcc-x86_64-debug"},
+        {"name": "linux-tcc-x86_64-release", "configurePreset": "linux-tcc-x86_64-release"},
+        {"name": "linux-tcc-arm64", "configurePreset": "linux-tcc-arm64"},
+        {"name": "linux-tcc-arm64-debug", "configurePreset": "linux-tcc-arm64-debug"},
+        {"name": "linux-tcc-arm64-release", "configurePreset": "linux-tcc-arm64-release"},
+        {"name": "linux-clang-x86_64", "configurePreset": "linux-clang-x86_64"},
+        {"name": "linux-clang-x86_64-debug", "configurePreset": "linux-clang-x86_64-debug"},
+        {"name": "linux-clang-x86_64-release", "configurePreset": "linux-clang-x86_64-release"},
+        {"name": "linux-clang-arm64", "configurePreset": "linux-clang-arm64"},
+        {"name": "linux-clang-arm64-debug", "configurePreset": "linux-clang-arm64-debug"},
+        {"name": "linux-clang-arm64-release", "configurePreset": "linux-clang-arm64-release"},
+        {"name": "macos-gcc", "configurePreset": "macos-gcc"},
+        {"name": "macos-gcc-debug", "configurePreset": "macos-gcc-debug"},
+        {"name": "macos-gcc-release", "configurePreset": "macos-gcc-release"},
+        {"name": "macos-homebrew-clang", "configurePreset": "macos-homebrew-clang"},
+        {"name": "macos-homebrew-clang-debug", "configurePreset": "macos-homebrew-clang-debug"},
+        {"name": "macos-homebrew-clang-release", "configurePreset": "macos-homebrew-clang-release"},
+        {"name": "macos-clang", "configurePreset": "macos-clang"},
+        {"name": "macos-clang-debug", "configurePreset": "macos-clang-debug"},
+        {"name": "macos-clang-release", "configurePreset": "macos-clang-release"},
+        {"name": "windows-mingw-x86_64", "configurePreset": "windows-mingw-x86_64"},
+        {"name": "windows-mingw-x86_64-debug", "configurePreset": "windows-mingw-x86_64-debug"},
+        {"name": "windows-mingw-x86_64-release", "configurePreset": "windows-mingw-x86_64-release"},
+        {"name": "windows-mingw-arm64", "configurePreset": "windows-mingw-arm64"},
+        {"name": "windows-mingw-arm64-debug", "configurePreset": "windows-mingw-arm64-debug"},
+        {"name": "windows-mingw-arm64-release", "configurePreset": "windows-mingw-arm64-release"},
+        {"name": "windows-msvc-x86_64", "configurePreset": "windows-msvc-x86_64"},
+        {"name": "windows-msvc-x86_64-debug", "configurePreset": "windows-msvc-x86_64-debug"},
+        {"name": "windows-msvc-x86_64-release", "configurePreset": "windows-msvc-x86_64-release"},
+        {"name": "windows-gcc-x86_64", "configurePreset": "windows-gcc-x86_64"},
+        {"name": "windows-gcc-x86_64-debug", "configurePreset": "windows-gcc-x86_64-debug"},
+        {"name": "windows-gcc-x86_64-release", "configurePreset": "windows-gcc-x86_64-release"},
+        {"name": "windows-msvc-arm64", "configurePreset": "windows-msvc-arm64"},
+        {"name": "windows-msvc-arm64-debug", "configurePreset": "windows-msvc-arm64-debug"},
+        {"name": "windows-msvc-arm64-release", "configurePreset": "windows-msvc-arm64-release"},
+        {"name": "windows-gcc-arm64", "configurePreset": "windows-gcc-arm64"},
+        {"name": "windows-gcc-arm64-debug", "configurePreset": "windows-gcc-arm64-debug"},
+        {"name": "windows-gcc-arm64-release", "configurePreset": "windows-gcc-arm64-release"},
+        {"name": "emscripten", "configurePreset": "emscripten"},
+        {"name": "emscripten-debug", "configurePreset": "emscripten-debug"},
+        {"name": "emscripten-release", "configurePreset": "emscripten-release"}
+    ],
+    "testPresets": [
+        {"name": "test-base", "hidden": true, "output": {"outputOnFailure": true}},
+        {"name": "default", "inherits": "test-base", "configurePreset": "default"},
+        {"name": "default-debug", "inherits": "test-base", "configurePreset": "default-debug"},
+        {"name": "default-release", "inherits": "test-base", "configurePreset": "default-release"},
+        {"name": "debug", "inherits": "test-base", "configurePreset": "debug"},
+        {"name": "release", "inherits": "test-base", "configurePreset": "release"},
+        {"name": "linux-gcc-x86_64", "inherits": "test-base", "configurePreset": "linux-gcc-x86_64"},
+        {"name": "linux-gcc-x86_64-debug", "inherits": "test-base", "configurePreset": "linux-gcc-x86_64-debug"},
+        {"name": "linux-gcc-x86_64-release", "inherits": "test-base", "configurePreset": "linux-gcc-x86_64-release"},
+        {"name": "linux-gcc-arm64", "inherits": "test-base", "configurePreset": "linux-gcc-arm64"},
+        {"name": "linux-gcc-arm64-debug", "inherits": "test-base", "configurePreset": "linux-gcc-arm64-debug"},
+        {"name": "linux-gcc-arm64-release", "inherits": "test-base", "configurePreset": "linux-gcc-arm64-release"},
+        {"name": "linux-tcc-x86_64", "inherits": "test-base", "configurePreset": "linux-tcc-x86_64"},
+        {"name": "linux-tcc-x86_64-debug", "inherits": "test-base", "configurePreset": "linux-tcc-x86_64-debug"},
+        {"name": "linux-tcc-x86_64-release", "inherits": "test-base", "configurePreset": "linux-tcc-x86_64-release"},
+        {"name": "linux-tcc-arm64", "inherits": "test-base", "configurePreset": "linux-tcc-arm64"},
+        {"name": "linux-tcc-arm64-debug", "inherits": "test-base", "configurePreset": "linux-tcc-arm64-debug"},
+        {"name": "linux-tcc-arm64-release", "inherits": "test-base", "configurePreset": "linux-tcc-arm64-release"},
+        {"name": "linux-clang-x86_64", "inherits": "test-base", "configurePreset": "linux-clang-x86_64"},
+        {"name": "linux-clang-x86_64-debug", "inherits": "test-base", "configurePreset": "linux-clang-x86_64-debug"},
+        {"name": "linux-clang-x86_64-release", "inherits": "test-base", "configurePreset": "linux-clang-x86_64-release"},
+        {"name": "linux-clang-arm64", "inherits": "test-base", "configurePreset": "linux-clang-arm64"},
+        {"name": "linux-clang-arm64-debug", "inherits": "test-base", "configurePreset": "linux-clang-arm64-debug"},
+        {"name": "linux-clang-arm64-release", "inherits": "test-base", "configurePreset": "linux-clang-arm64-release"},
+        {"name": "macos-gcc", "inherits": "test-base", "configurePreset": "macos-gcc"},
+        {"name": "macos-gcc-debug", "inherits": "test-base", "configurePreset": "macos-gcc-debug"},
+        {"name": "macos-gcc-release", "inherits": "test-base", "configurePreset": "macos-gcc-release"},
+        {"name": "macos-homebrew-clang", "inherits": "test-base", "configurePreset": "macos-homebrew-clang"},
+        {"name": "macos-homebrew-clang-debug", "inherits": "test-base", "configurePreset": "macos-homebrew-clang-debug"},
+        {"name": "macos-homebrew-clang-release", "inherits": "test-base", "configurePreset": "macos-homebrew-clang-release"},
+        {"name": "macos-clang", "inherits": "test-base", "configurePreset": "macos-clang"},
+        {"name": "macos-clang-debug", "inherits": "test-base", "configurePreset": "macos-clang-debug"},
+        {"name": "macos-clang-release", "inherits": "test-base", "configurePreset": "macos-clang-release"},
+        {"name": "windows-mingw-x86_64", "inherits": "test-base", "configurePreset": "windows-mingw-x86_64"},
+        {"name": "windows-mingw-x86_64-debug", "inherits": "test-base", "configurePreset": "windows-mingw-x86_64-debug"},
+        {"name": "windows-mingw-x86_64-release", "inherits": "test-base", "configurePreset": "windows-mingw-x86_64-release"},
+        {"name": "windows-mingw-arm64", "inherits": "test-base", "configurePreset": "windows-mingw-arm64"},
+        {"name": "windows-mingw-arm64-debug", "inherits": "test-base", "configurePreset": "windows-mingw-arm64-debug"},
+        {"name": "windows-mingw-arm64-release", "inherits": "test-base", "configurePreset": "windows-mingw-arm64-release"},
+        {"name": "windows-msvc-x86_64", "inherits": "test-base", "configurePreset": "windows-msvc-x86_64"},
+        {"name": "windows-msvc-x86_64-debug", "inherits": "test-base", "configurePreset": "windows-msvc-x86_64-debug"},
+        {"name": "windows-msvc-x86_64-release", "inherits": "test-base", "configurePreset": "windows-msvc-x86_64-release"},
+        {"name": "windows-gcc-x86_64", "inherits": "test-base", "configurePreset": "windows-gcc-x86_64"},
+        {"name": "windows-gcc-x86_64-debug", "inherits": "test-base", "configurePreset": "windows-gcc-x86_64-debug"},
+        {"name": "windows-gcc-x86_64-release", "inherits": "test-base", "configurePreset": "windows-gcc-x86_64-release"},
+        {"name": "windows-msvc-arm64", "inherits": "test-base", "configurePreset": "windows-msvc-arm64"},
+        {"name": "windows-msvc-arm64-debug", "inherits": "test-base", "configurePreset": "windows-msvc-arm64-debug"},
+        {"name": "windows-msvc-arm64-release", "inherits": "test-base", "configurePreset": "windows-msvc-arm64-release"},
+        {"name": "windows-gcc-arm64", "inherits": "test-base", "configurePreset": "windows-gcc-arm64"},
+        {"name": "windows-gcc-arm64-debug", "inherits": "test-base", "configurePreset": "windows-gcc-arm64-debug"},
+        {"name": "windows-gcc-arm64-release", "inherits": "test-base", "configurePreset": "windows-gcc-arm64-release"}
+    ]
+}

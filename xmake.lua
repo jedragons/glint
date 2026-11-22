@@ -9,11 +9,12 @@
 --
 -- The actual build is still owned by CMake; this only drives it with
 -- `import("package.tools.cmake")` and installs its outputs into the package
--- dir. All of glint's dependencies (raylib, sol2, fmt, lua, entt, nlohmann
--- json, wtr) are vendored under ./vendor/ and built as part
--- of the same CMake tree, so `cmake --install` already produces every
--- lib/*.a and include/ header glint needs -- nothing is fetched from
--- xmake-repo, and consumers don't need any add_deps() beyond "cmake" itself.
+-- dir. All of glint's dependencies (lua, raylib) are vendored under
+-- ./vendor/ and built as part of the same C-only CMake tree, so nothing is
+-- fetched from xmake-repo, and consumers don't need any add_deps() beyond
+-- "cmake" itself.
+--
+-- CMake installs the engine, dependencies, and public headers.
 
 package("glint")
     set_sourcedir(os.scriptdir())
@@ -21,23 +22,11 @@ package("glint")
 
     add_deps("cmake")
 
-    -- These libs have real cross-dependencies on each other (glint -> glint-module-dim2
-    -- -> glint-core -> glint-vfs,
-    -- etc). xmake's automatic package link detection (scanning lib/*.a)
-    -- comes out alphabetical, which breaks single-pass linking here (e.g.
-    -- "glint-core.a" sorts before "glint.a", so glint's own undefined
-    -- symbols never get resolved). Wrap them in a linker group so the order
-    -- xmake ends up using stops mattering.
+    -- Flat static archives: the engine first, then its vendored deps as a
+    -- group so their order doesn't matter.
     add_syslinks(
         "glint",
-        "glint-module-dim2",
-        "glint-module-audio",
-        "glint-module-platform",
-        "glint-core",
-        "glint-vfs",
         "raylib",
-        "fmt",
-        "fmt-c",
         "lua",
         {group = true}
     )
@@ -45,12 +34,20 @@ package("glint")
     -- raylib links X11 PRIVATEly against its own CMake target, which does
     -- not propagate to consumers of a flat prebuilt libraylib.a -- so
     -- redeclare it here for platforms where raylib actually needs it.
+    -- libm is linked PUBLICly by the engine's CMake target.
     if is_plat("linux") then
-        add_syslinks("X11")
+        add_syslinks("X11", "GL", "pthread", "dl", "m")
+    elseif is_plat("macosx") then
+        add_frameworks("Cocoa", "IOKit", "CoreFoundation", "OpenGL")
+    elseif is_plat("windows", "mingw") then
+        add_syslinks("opengl32", "gdi32", "winmm")
     end
 
     on_install(function (package)
+        import("package.tools.cmake")
         local configs = {}
         table.insert(configs, "-DCMAKE_BUILD_TYPE=" .. (package:debug() and "Debug" or "Release"))
-        import("package.tools.cmake").install(package, configs)
+
+        cmake.build(package, configs, {target = "glint"})
+        cmake.install(package, configs)
     end)

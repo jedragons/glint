@@ -1,0 +1,5 @@
+#include "./asset.c"
+#include "./atlas.c"
+#include "./bindings.c"
+#include "./dim2.c"
+#include "./module.c"

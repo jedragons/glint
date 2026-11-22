@@ -63,7 +63,7 @@ Timer = {}
 ---@return Timer
 function Timer.new(duration, mode) end
 
----@overload fun(e: Entity, timer: Timer)
+---@overload fun(e: Entity, timer: Timer): Timer
 ---@param e Entity
 ---@param duration number
 ---@param mode integer
@@ -81,16 +81,21 @@ function Timer.has(e) end
 ---@param e Entity
 function Timer.remove(e) end
 
+---@return Timer
 function Timer:reset() end
 
+---@return Timer
 function Timer:pause() end
 
+---@return Timer
 function Timer:unpause() end
 
+---@return Timer
 function Timer:finish() end
 
+---@return Timer
 function Timer:almost_finish() end
 
----@overload fun(self: Timer, dt: number)
+---@overload fun(self: Timer, dt: number): Timer
 ---@return Timer
 function Timer:tick() end

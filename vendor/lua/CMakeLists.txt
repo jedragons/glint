@@ -1,4 +1,4 @@
-project(Lua)
+project(Lua LANGUAGES C)
 
 add_library(lua STATIC)
 add_library(lua::lua ALIAS lua)
@@ -43,7 +43,7 @@ target_include_directories(lua PUBLIC
 )
 
 if (WIN32)
-    target_compile_definitions(lua PRIVATE LUA_USE_WINDOWS)
+    # luaconf.h detects Windows automatically.
 elseif(LINUX)
     target_compile_definitions(lua PRIVATE LUA_USE_LINUX)
     target_link_libraries(lua PUBLIC dl)
