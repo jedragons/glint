@@ -120,11 +120,10 @@ int gplatform_height(void) {
 static void gplatform__loop_frame(void* unused) {
     (void)unused;
     bool ok = true;
-    if (!gplatform_window_should_close()) {
-        ok = gplatform__loop.frame(gplatform__loop.user, gplatform_frame_time());
-        if (ok) {
-            return;
-        }
+
+    ok = gplatform__loop.frame(gplatform__loop.user, gplatform_frame_time());
+    if (ok) {
+        return;
     }
 
     gplatform_LoopEndFn end = gplatform__loop.end;
