@@ -569,6 +569,7 @@ static bool gscript_behavior__behaviors_asset_reload(
 
     if (asset->module != LUA_NOREF) {
         gscript_lua_release_module(alloc, behaviors->script, asset->module);
+        glog_info("Behavior '%s' reloaded successfully", path);
     }
 
     asset->module = module;
@@ -603,6 +604,8 @@ static bool gscript_behavior__behaviors_asset_load(
         galloc_free(alloc, asset->native_path);
         return false;
     }
+
+    glog_info("Behavior '%s' loaded successfully", path);
 
     return true;
 }
