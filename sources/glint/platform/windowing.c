@@ -97,7 +97,11 @@ void gplatform_window_close(void) {
 }
 
 bool gplatform_window_should_close(void) {
+#if GLINT_PLATFORM_WEB
+    return false;
+#else
     return WindowShouldClose();
+#endif
 }
 
 float gplatform_frame_time(void) {
@@ -121,9 +125,11 @@ static void gplatform__loop_frame(void* unused) {
     (void)unused;
     bool ok = true;
 
-    ok = gplatform__loop.frame(gplatform__loop.user, gplatform_frame_time());
-    if (ok) {
-        return;
+    if (!gplatform_window_should_close()) {
+        ok = gplatform__loop.frame(gplatform__loop.user, gplatform_frame_time());
+        if (ok) {
+            return;
+        }
     }
 
     gplatform_LoopEndFn end = gplatform__loop.end;
