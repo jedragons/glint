@@ -1,0 +1,11 @@
+[package]
+name = "glint-bindgen"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+lazy_static = { workspace = true }
+scopeguard = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-c = { workspace = true }
